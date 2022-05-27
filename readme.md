@@ -3,7 +3,7 @@
 [![Lisence-GPL3.0](https://img.shields.io/github/license/kushidou/bili-notice-hoshino)]((LICENSE))
 ![PythonVer](https://img.shields.io/badge/python-3.8+-blue)
 [![HoshinoVer](https://img.shields.io/badge/Hoshino-v2.0.0%2B-green)](https://github.com/Ice-Cirno/HoshinoBot)
-[![Version](https://img.shields.io/badge/Beta-v0.b.3-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
+[![Version](https://img.shields.io/badge/Beta-v0.b.3.1-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
 [![Q群](https://img.shields.io/badge/QQ%E7%BE%A4-655742099-yellow)](https://jq.qq.com/?_wv=1027&k=CXGsKj1P)
 
 ## Desc 简介
@@ -41,6 +41,8 @@
 **uppers/uid.json** ==>  保存各个up主的已发送动态列表(防止程序调试等情况反复重发)
 
 **uppers/list.json** ==>  记录up主和群的对应关系，及几个配置。
+
+**log/xxx.log** ==>  日志，按日分类，最长七天。仍在测试中，暂不支持修改。
 </details>
 
 ## 使用
