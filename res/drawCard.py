@@ -1,16 +1,26 @@
-from inspect import ismemberdescriptor
 import os, json, time, io, re, base64
-import logging
-from pprint import isreadable
+from loguru import logger as log
 
 from math import ceil
 from os.path import dirname, join, exists
 from PIL import Image,ImageFont,ImageDraw,ImageFilter
-from urwid.str_util import get_width
 
 from .getImg import get_ico, get_Image, round_mask
 
-
+# Init log system
+path_log = join(dirname(__file__), "../log/")
+if not exists(path_log):
+    os.mkdir(path_log)
+log.add(
+    path_log+'drawCard_{time:YYYY-MM-DD}.log',
+    level="DEBUG",
+    rotation="04:00",
+    retention="7 days",
+    backtrace=True,
+    enqueue=True,
+    diagnose=False,
+    format='{time:MM-DD HH:mm:ss} [{level}]\t{module}.{function}({line}): {message}'
+)
 
 
 # 生成动态卡片的具体代码
@@ -47,11 +57,13 @@ class Card(object):
                 card_content = re.sub(r'\} ?\]\"', '} ]', card_content)
                 card_content = re.sub(r'\"\[ ?\{', '[ {', card_content)
                 # print(card_content)
+                log.trace(f'card detail content = {card_content}')
                 break
         self.card=json.loads(card_content)
         if not self.dyid == int(self.dyidstr):
             self.dyid = int(self.dyidstr)
         self.extra = {} # 各种变蓝文字的信息
+        log.trace(f'Object decode finish. UID={self.nickname}, Type={int(self.dytype)}')
         
     
     def is_realtime(self, timeinterval: int):
@@ -62,30 +74,38 @@ class Card(object):
         for b in blk:
             if json.dumps(self.card).count(b):
                 ret = True
+                log.debug(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
         return ret
 
 
-
+    @log.catch
     def draw(self, box:object()):
         # 解析通用的信息，并绘制头像、昵称、背景、点赞box，然后调用其他绘制动态主体，最后把所有box合成
         # 制作头像  == faceimg ==
+        log.info("Start Draw dynamic card: UID={self.nickname}, Type={int(self.dytype)}")
         face=get_Image(Type="face",url=self.latest["desc"]["user_profile"]["info"]["face"])
         face_pendant_url= self.latest["desc"]["user_profile"]["pendant"]["image"]
         if not face_pendant_url == "":
             face_pendant = get_Image(Type="pendant", url=face_pendant_url)
+            log.debug("Get pendant success.")
         else:
             face_pendant=None
+            log.debug("NO pendant around his/her face.")
         avatar_type = self.latest["desc"]["user_profile"]["card"]["official_verify"].get("type")
         if avatar_type == 1:   #企业认证
             face_avatar = get_ico('group')
+            log.debug('This is an account of Group.')
         elif avatar_type == 0:     #个人认证
             face_avatar = get_ico('persional')
+            log.debug('This is an account of Professional Persion')
         elif avatar_type == -1:
             avatar_url = self.latest["desc"]["user_profile"]["vip"]["avatar_subscript_url"]
             if not avatar_url == "":
                 face_avatar = get_Image(Type="avatar",url=avatar_url)
+                log.debug('This is an account of BigVIP(Year)')
             else:
                 face_avatar = None
+                log.debug('This is a normal persion.')
         faceimg = box.face(face, pendant=face_pendant, avatar_subscript=face_avatar)
 
         # 制作昵称  == nickimg ==
@@ -157,8 +177,10 @@ class Card(object):
             decorate_img = None
             decorate_col = (0,0,0)
             decorate_num = 0
+            log.debug('No card background.')
         bgimg = box.bg(height=length, decorate_card=decorate_img, fan_number=decorate_num, fancolor=decorate_col)
 
+        log.debug(f'Height of dynamic pic = {length}. Start splicing.')
         bgimg.paste(faceimg, (9,9), mask=faceimg)
         bgimg.paste(nickimg, (88,27), mask=nickimg)
         if self.dytype == 1:
@@ -178,10 +200,12 @@ class Card(object):
     def drawRepost(self, content, box, is_rep=False):
         # 解析出现在动态内容、原始动态信息
         # 先按类型绘制原始动态,贴身灰色背景，然后绘制当前动态（纯文字），拼接，最后返回完整图片
+        log.info('Type = Repost')
         orname =content["origin_user"]["info"]["uname"]
         orface = get_Image(Type = "face", url=content["origin_user"]["info"]["face"])
 
         img_now = box.text(content["item"]["content"], self.extra)
+
         oritype = self.latest["desc"]["orig_type"]
         if oritype == 2:    # 转发带图动态
             img_ori = self.drawImage(content["origin"], box, is_rep=True)
@@ -189,7 +213,6 @@ class Card(object):
             img_ori = self.drawobj(content["origin"], box, is_rep=True)
         elif oritype == 8:  # 转发视频
             img_ori = self.drawVideo(content["origin"], box, is_rep=True)
-
 
         img = box.repost(orface, orname, img_now, img_ori)
         return img
@@ -369,7 +392,9 @@ class Box(object):
         if decorate_card:
             # 动态装扮两种尺寸，横竖比大于2:1=>146x44，否则60 × 34
             s=decorate_card.size
+            
             if s[0]/s[1] > 2:
+                log.debug(f'Got decorate card object, its size={s}, target size=(146,44)')
                 dimg = decorate_card.resize((146,44), Image.ANTIALIAS)
                 draw = ImageDraw.Draw(dimg)
                 font = ImageFont.truetype(self.fanfont, 12)
@@ -377,6 +402,7 @@ class Box(object):
 
                 img.paste(dimg, (self.width - 48 - 146,18), dimg)
             else:
+                log.debug(f'Got decorate card object, its size={s}, target_size(60,34)')
                 dimg = decorate_card.resize((60,34), Image.ANTIALIAS)
                 img.paste(dimg, (self.width - 48 - 60,18), dimg)
         return img
@@ -406,6 +432,7 @@ class Box(object):
         oimg.paste(card, (12, 8+24+6), card)
 
         img = Image.new('RGBA', (oimg.size[0], oimg.size[1] + new_card.size[1] + 10), (0,0,0,0))
+        log.info(f'splice new card and origin card. Size = {img.size}')
         img.paste(new_card, (12,0), new_card)
         img.paste(oimg, (0, new_card.size[1] + 10), img_rounded(oimg.size,16))
 
@@ -614,18 +641,20 @@ class Box(object):
             nimage.append(pic)
 
         else:
-            # 多图，固定104x104大小
+            # 多图，固定104x104大小 ==> 104太小，尺寸扩大
+            target = self.width - 100 / 3 - 20
+            log.debug(f'Multi images, size fix to {target}x{target}')
             for im in pics:
                 s=im.size
                 s2=[0,0]
                 if s[0] >= s[1]:
-                    s2[1] = 104
-                    s2[0] = int(104 * (s[0] / s[1]))
+                    s2[1] = target
+                    s2[0] = int(target * (s[0] / s[1]))
                 else:
-                    s2[0] = 104
-                    s2[1] = int(104 * (s[1] / s[0]))
+                    s2[0] = target
+                    s2[1] = int(target * (s[1] / s[0]))
                 pic = im.resize(s2,Image.ANTIALIAS)
-                win = ( s2[0]/2-52, s2[1]/2-52, s2[0]/2+52, s2[1]/2+52 )    #从中间切出一个正方形
+                win = ( s2[0]/2-target/2, s2[1]/2-target/2, s2[0]/2+target/2, s2[1]/2+target/2 )    #从中间切出一个正方形
                 nimage.append(pic.crop(win))
         
         if pic_count == 1:
@@ -634,6 +663,7 @@ class Box(object):
             line=2
         else:
             line=3
+        log.debug(f'Got {pic_count} pics, {line} pics per line.')
 
         img = Image.new('RGBA', (text_img.size[0], length), (0,0,0,0))
         img.paste(text_img, (0,0), text_img)
@@ -924,34 +954,36 @@ def img_resize(s):
         如果正方形的图，104~320，缩放
         小图，放大至小边
     '''
+    target_min=104
+    target_max=320
     x,y=s[0],s[1]
     B=max(s)
     S=min(s)
     cut = None
     if B==S:        #正方形的图
-        if B<104:
-            ns=(104,104)
-        elif(B>320):
-            ns=(320,320)
+        if B<target_min:
+            ns=(target_min,target_min)
+        elif(B>target_max):
+            ns=(target_max,target_max)
         else:
             ns=(x,y)
     else:
         if B/S > 4/3:       # 长图，需要截取
             cut = 3 * B / 4
             # print(f"pic be cuted to ({B},{cut})")
-            if B < 104:
-                nS = 120
-                nB = 160
-            elif S>320:
-                nB = 320
-                nS = 240
+            if B < target_min:
+                nS = target_min
+                nB = target_min * 4 /3
+            elif S>target_max:
+                nB = target_max
+                nS = target_max * 3 / 4
         else:               # 比例合规
-            if B < 104:
+            if B < target_min:
                 nS=120
                 nB=int(B*120/S)
-            elif S>320:
-                nB=320
-                nS=int(S*320/B)
+            elif S>target_max:
+                nB=target_max
+                nS=int(S*target_max/B)
         if x>y:
             ns=(nB,nS)
         else:
@@ -960,18 +992,17 @@ def img_resize(s):
 
 
 def img_rounded(s: tuple(), r):
-    r2=2*r
-    nimg = Image.new('RGBA', s, (0,0,0,0))
     mask = Image.new('RGBA', s, (0,0,0,0))
-    s2=mask.size
     draw = ImageDraw.Draw(mask)
-    color=(0,0,0,255)
     draw.rounded_rectangle((0,0, s[0]-1, s[1]-1), radius=r, fill=(0,0,0,255))
     return mask
 
 
 def hex2rgb(hex:str, alpha=255):
-    hex=hex[1:]
+    hex=hex[1:] if hex[0]=='#' else hex
+    if not len(hex) == 6:
+        log.error('Input color hex wrong, got {hex}, return white color.')
+        return(255,255,255,255)
     # print(hex)
     r = int(hex[0:2],16)
     g = int(hex[2:4],16)

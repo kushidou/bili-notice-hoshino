@@ -42,23 +42,39 @@ if os.path.exists(up_dir + 'list.json'):
             up_latest[uid]=[]
             with open(up_dir+uid+'.json','w') as f:
                 json.dump({"history":[]}, f, ensure_ascii=False)
-
-
     up_list = list(up_group_info.keys())
 
+# 主要功能实现
+# 轮询订阅，解析动态，发送动态信息
 async def get_update():
     global number,up_latest, up_list
     msg,dyimg,dytype = None,None,None
     
-    this_up = up_group_info[up_list[number]]
+    maxcount = len(up_list)
+    while 1:
+        this_up = up_group_info[up_list[number]]
+        if this_up["watch"] == True:                # 跳过不监控的up
+            if len(this_up["group"]) == 0:          # 如果没有群关注up，就更改状态为不监控
+                up_group_info[up_list[number]]["watch"]=False
+                with open(join(up_dir,'list.json'), 'w') as f:
+                    json.dump(up_group_info, f, ensure_ascii=False)
+                continue            # 状态更新完成，下一个
+            else:
+                break               # up主状态正常，跳出循环
+        else:
+            if maxcount <= 0:       # 避免死循环不跳出
+                return
+            else:
+                maxcount = maxcount -1
+            if number+1>=len(up_list):          # 最多进行一轮
+                number = 0
+            else:
+                number = number+1
+        
+        
     
     group_list = this_up["group"]
     if this_up["watch"]:
-        if len(this_up["group"]) == 0:
-            up_group_info[up_list[number]]["watch"]=False
-            with open(join(up_dir,'list.json'), 'w') as f:
-                json.dump(up_group_info, f, ensure_ascii=False)
-            return None,None
         
         uid_str = up_list[number]
         try:
@@ -69,7 +85,7 @@ async def get_update():
         dynamic = drawCard.Card(dylist)
 
         if not dynamic.nickname == this_up["uname"]:
-            up_group_info[up_list[number]][uname] = dynamic.nickname
+            up_group_info[up_list[number]]["uname"] = dynamic.nickname
             with open(join(up_dir,'list.json'), 'w') as f:
                 json.dump(up_group_info, f, ensure_ascii=False)
 
