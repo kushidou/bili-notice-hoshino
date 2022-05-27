@@ -8,19 +8,20 @@ from PIL import Image,ImageFont,ImageDraw,ImageFilter
 from .getImg import get_ico, get_Image, round_mask
 
 # Init log system
-path_log = join(dirname(__file__), "../log/")
-if not exists(path_log):
-    os.mkdir(path_log)
-log.add(
-    path_log+'drawCard_{time:YYYY-MM-DD}.log',
-    level="DEBUG",
-    rotation="04:00",
-    retention="7 days",
-    backtrace=True,
-    enqueue=True,
-    diagnose=False,
-    format='{time:MM-DD HH:mm:ss} [{level}]\t{module}.{function}({line}): {message}'
-)
+def initlog():
+    path_log = join(dirname(__file__), "../log/")
+    if not exists(path_log):
+        os.mkdir(path_log)
+    log.add(
+        path_log+'drawCard_{time:YYYY-MM-DD}.log',
+        level="DEBUG",
+        rotation="04:00",
+        retention="3 days",
+        backtrace=True,
+        enqueue=True,
+        diagnose=False,
+        format='{time:MM-DD HH:mm:ss} [{level}]\t{module}.{function}({line}): {message}'
+    )
 
 
 # 生成动态卡片的具体代码
@@ -37,6 +38,7 @@ class Card(object):
         self.dyidstr= self.latest["desc"]["dynamic_id_str"]
         self.dytime = self.latest["desc"]["timestamp"]
         self.nickname=self.latest["desc"]["user_profile"]["info"]["uname"]
+        self.uid   = self.latest["desc"]["user_profile"]["info"]["uid"]
         card_content= self.latest["card"]
         while True:
             if card_content.count('\\\\"') >= 1 or card_content.count('\\\\/') >= 1:
@@ -63,7 +65,7 @@ class Card(object):
         if not self.dyid == int(self.dyidstr):
             self.dyid = int(self.dyidstr)
         self.extra = {} # 各种变蓝文字的信息
-        log.trace(f'Object decode finish. UID={self.nickname}, Type={int(self.dytype)}')
+        log.trace(f'Object decode finish. Name={self.nickname}, Type={int(self.dytype)}')
         
     
     def is_realtime(self, timeinterval: int):
@@ -82,7 +84,9 @@ class Card(object):
     def draw(self, box:object()):
         # 解析通用的信息，并绘制头像、昵称、背景、点赞box，然后调用其他绘制动态主体，最后把所有box合成
         # 制作头像  == faceimg ==
-        log.info("Start Draw dynamic card: UID={self.nickname}, Type={int(self.dytype)}")
+        log.info('====== New Dynamic Card =====')
+        log.info(f"UID={self.nickname}({self.uid}), Dynamic_id={self.dyid}, Type={int(self.dytype)}")
+
         face=get_Image(Type="face",url=self.latest["desc"]["user_profile"]["info"]["face"])
         face_pendant_url= self.latest["desc"]["user_profile"]["pendant"]["image"]
         if not face_pendant_url == "":
@@ -94,35 +98,45 @@ class Card(object):
         avatar_type = self.latest["desc"]["user_profile"]["card"]["official_verify"].get("type")
         if avatar_type == 1:   #企业认证
             face_avatar = get_ico('group')
+            log_avatar_type='企业'
             log.debug('This is an account of Group.')
         elif avatar_type == 0:     #个人认证
             face_avatar = get_ico('persional')
+            log_avatar_type='个人'
             log.debug('This is an account of Professional Persion')
         elif avatar_type == -1:
             avatar_url = self.latest["desc"]["user_profile"]["vip"]["avatar_subscript_url"]
             if not avatar_url == "":
                 face_avatar = get_Image(Type="avatar",url=avatar_url)
+                log_avatar_type='年度会员'
                 log.debug('This is an account of BigVIP(Year)')
             else:
                 face_avatar = None
+                log_avatar_type='一般男性'
                 log.debug('This is a normal persion.')
+        log.info(f'FaceBox: 头像框={bool(face_pendant)}, 头像角标={log_avatar_type}', )
         faceimg = box.face(face, pendant=face_pendant, avatar_subscript=face_avatar)
 
         # 制作昵称  == nickimg ==
         nickname = self.latest["desc"]["user_profile"]["info"]["uname"]
         isVIP    = True if (self.latest["desc"]["user_profile"]["vip"]["vipType"] == 2) else False
         pubtime  = time.strftime("%y-%m-%d %H:%M", time.localtime(float(self.dytime)))
+        log.info(f'Name and Time Box: nickname={nickname}, color={"pink" if isVIP else "black"}, time="{pubtime}", timeStamp={self.dytime}')
         nickimg = box.nickname(nick=nickname, time=pubtime, isBigVIP=isVIP)
-
+        
         #制作一键三连   == bottom ==
         sharenum   = self.latest["desc"]["repost"]
         if self.dytype in [1,2,4]:
             commentnum = self.latest["desc"]["comment"]
-        if self.dytype == 8:
+            log.debug(f'Get comment num={commentnum} form dynamic.desc.comment because Type={self.dytype}')
+        elif self.dytype == 8:
             commentnum = self.card["stat"]["reply"]
+            log.debug(f'Get comment num={commentnum} form dynamic.card.stat.comment because Type={self.dytype}')
         else:
             commentnum = 114514
+            log.debug('Get comment num fail! Set commentnum = 114514')
         likenum    = self.latest["desc"]["like"]
+        log.info(f'BottomBox: share={sharenum}, comment={commentnum}, like={likenum}')
         bottomimg = box.bottom(sharenum, commentnum, likenum)
 
         #根据类型制作body  ==  body ==
@@ -160,6 +174,7 @@ class Card(object):
         else:
             bodyimg = Image.new('RGBA', (50,50), 'white')
             ret_txt=""
+        log.info(f'BodyBox: type={ret_txt}')
 
 
         #根据所有的长度制作背景图   == bg ==
@@ -178,6 +193,7 @@ class Card(object):
             decorate_col = (0,0,0)
             decorate_num = 0
             log.debug('No card background.')
+        log.info(f'BackgroundBox: height={length}, 卡片挂件={bool(decorate_img)}')
         bgimg = box.bg(height=length, decorate_card=decorate_img, fan_number=decorate_num, fancolor=decorate_col)
 
         log.debug(f'Height of dynamic pic = {length}. Start splicing.')
@@ -192,6 +208,7 @@ class Card(object):
         bio = io.BytesIO()
         bgimg.save(bio, format="PNG")
         base64_img = 'base64://' + base64.b64encode(bio.getvalue()).decode()
+        log.info('Congratulations! Dynamic Card Image is generated successfully. Encode "base64" and send to QQbot.')
 
         return base64_img, ret_txt
         
@@ -948,11 +965,10 @@ def chgap(ch:str, chnxt, base):
 def img_resize(s):
     '''
     规则：
-        每条边最长为320。比例4:3
-        如果图很大且超比例，那么尺寸限制在320x240(横图)或240x320（纵图）
-        图大且未超比例，那长边靠近320
-        如果正方形的图，104~320，缩放
-        小图，放大至小边
+        2022-05-27 深夜     规则重写
+        只处理单图的情况。
+        横向最大分辨率为320不动（可配置）
+        横图，纵向最大240；横图，纵向最大430；总体保持4:3的比例
     '''
     target_min=104
     target_max=320
@@ -960,35 +976,35 @@ def img_resize(s):
     B=max(s)
     S=min(s)
     cut = None
-    if B==S:        #正方形的图
-        if B<target_min:
+    if x==y:        #正方形的图
+        if x<target_min:
             ns=(target_min,target_min)
-        elif(B>target_max):
+        elif(x>target_max):
             ns=(target_max,target_max)
         else:
             ns=(x,y)
-    else:
-        if B/S > 4/3:       # 长图，需要截取
-            cut = 3 * B / 4
-            # print(f"pic be cuted to ({B},{cut})")
-            if B < target_min:
-                nS = target_min
-                nB = target_min * 4 /3
-            elif S>target_max:
-                nB = target_max
-                nS = target_max * 3 / 4
-        else:               # 比例合规
-            if B < target_min:
-                nS=120
-                nB=int(B*120/S)
-            elif S>target_max:
-                nB=target_max
-                nS=int(S*target_max/B)
-        if x>y:
-            ns=(nB,nS)
-        else:
-            ns=(nS,nB)
-    return ns,cut
+    else:                           # 矩形图
+        if B< target_max and S > target_min:    # 图像大小在范围内，保持原始分辨率
+            nx,ny=x,y  
+        else:                       # 图像太小或者太大
+            if B/S < 4/3 :               # 图像比例正常
+                if S > target_max:
+                    nx = target_max
+                    ny = (nx*3/4) if x>y else (nx*4/3) 
+            else:                       # 长图，需要截取
+                if x<y:                     # 纵图 ，y要长一点
+                    nx = x if (x<target_max) else target_max
+                    ny = nx * 4/3
+                    cut = x * 4/3
+
+                else:       # x>y, 横图，x要长一点
+                    ny = int(y if (y<target_max * 3/4) else (target_max * 3/4))
+                    nx = ny * 4/3
+                    cut = y * 4/3
+
+        ns=(int(nx),int(ny))
+    log.info(f'Resize pic in Dynamic, origin size={s}, output size={ns}, cut={cut}')
+    return ns,int(cut)
 
 
 def img_rounded(s: tuple(), r):

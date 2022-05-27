@@ -16,6 +16,10 @@ watcher_file = join(curpath, 'upperlist.json')
 res_dir = join(curpath,'res/')
 up_dir = join(curpath,'uppers/')
 
+# bili_notice_test.py 如果只运行test，需要把下面这行剪切过去。
+# 只能存在一条，否则日志会重复记录。
+drawCard.initlog()
+
 sv=Service(
     name='b站动态监视器',
     use_priv = priv.NORMAL,

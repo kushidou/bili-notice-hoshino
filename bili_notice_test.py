@@ -24,8 +24,6 @@ sv=Service(
     enable_on_default=True
 )
 
-
-
 # 该功能为Debug使用，生产前请禁用
 @sv.on_prefix('测试动态')
 async def bili_dy_from_id(bot,ev):
