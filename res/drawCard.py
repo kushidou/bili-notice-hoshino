@@ -19,7 +19,7 @@ def initlog():
         retention="3 days",
         backtrace=True,
         enqueue=True,
-        diagnose=False,
+        diagnose=True,              # 调试，生产请改为False
         format='{time:MM-DD HH:mm:ss} [{level}]\t{module}.{function}({line}): {message}'
     )
 
@@ -114,16 +114,16 @@ class Card(object):
                 face_avatar = None
                 log_avatar_type='一般男性'
                 log.debug('This is a normal persion.')
-        log.info(f'FaceBox: 头像框={bool(face_pendant)}, 头像角标={log_avatar_type}', )
         faceimg = box.face(face, pendant=face_pendant, avatar_subscript=face_avatar)
+        log.info(f'FaceBox: 头像框={bool(face_pendant)}, 头像角标={log_avatar_type}; BoxSize={faceimg.size}', )
 
         # 制作昵称  == nickimg ==
         nickname = self.latest["desc"]["user_profile"]["info"]["uname"]
         isVIP    = True if (self.latest["desc"]["user_profile"]["vip"]["vipType"] == 2) else False
         pubtime  = time.strftime("%y-%m-%d %H:%M", time.localtime(float(self.dytime)))
-        log.info(f'Name and Time Box: nickname={nickname}, color={"pink" if isVIP else "black"}, time="{pubtime}", timeStamp={self.dytime}')
         nickimg = box.nickname(nick=nickname, time=pubtime, isBigVIP=isVIP)
-        
+        log.info(f'Name and Time Box: nickname={nickname}, color={"pink" if isVIP else "black"}, time="{pubtime}", timeStamp={self.dytime};\nBoxSize={nickimg.size}')
+
         #制作一键三连   == bottom ==
         sharenum   = self.latest["desc"]["repost"]
         if self.dytype in [1,2,4]:
@@ -136,8 +136,8 @@ class Card(object):
             commentnum = 114514
             log.debug('Get comment num fail! Set commentnum = 114514')
         likenum    = self.latest["desc"]["like"]
-        log.info(f'BottomBox: share={sharenum}, comment={commentnum}, like={likenum}')
         bottomimg = box.bottom(sharenum, commentnum, likenum)
+        log.info(f'BottomBox: share={sharenum}, comment={commentnum}, like={likenum}; BoxSize={bottomimg.size}')
 
         #根据类型制作body  ==  body ==
         # == 准备有关材料 ==
@@ -174,7 +174,7 @@ class Card(object):
         else:
             bodyimg = Image.new('RGBA', (50,50), 'white')
             ret_txt=""
-        log.info(f'BodyBox: type={ret_txt}')
+        log.info(f'BodyBox: type={ret_txt}; BoxSize={bodyimg.size}')
 
 
         #根据所有的长度制作背景图   == bg ==
@@ -629,10 +629,14 @@ class Box(object):
     # 绘制带图的动态，文字部分调用text，图片根据数量进行处理，单图过长则按照4：3截断
     # return 图片对象，高
     def image(self, content: str, ex: dict, pics: list, pic_count: int, is_reposted=False):
+        log.debug(f'ImageBox: num of pics = {pic_count}')
         # 总之把文字画完，然后画图片
         text_img = self.text(content,ex, is_reposted)
+        log.debug(f'ImageBox -> TextBox, ')
         # img = Image.new('RGBA', (text_img.size[0], text_img[1] + maxx*seil(pic_count/3))), (0,0,0,0))
-        length = text_img.size[1] + 10 + ceil(108*(1+pic_count/3))
+        target = int((text_img.size[0] - 40) / 3 - 5)   # 多图图片大小，尽量放大些
+        length = text_img.size[1] + 10 + ceil((target + 5)*(pic_count/3))
+        log.debug(f'ImageBox: length => {text_img.size[1]} + 10 + {target+5} x ({pic_count}/3) = {length}')
         nimage=[]
         if pic_count==1:
             # 一张图片，尽量画完
@@ -659,7 +663,6 @@ class Box(object):
 
         else:
             # 多图，固定104x104大小 ==> 104太小，尺寸扩大
-            target = self.width - 100 / 3 - 20
             log.debug(f'Multi images, size fix to {target}x{target}')
             for im in pics:
                 s=im.size
@@ -686,8 +689,8 @@ class Box(object):
         img.paste(text_img, (0,0), text_img)
         # ====error====
         for n, im in enumerate(nimage):
-            pointx = 0 + (108 * (n%line))
-            pointy = text_img.size[1]+10 + (108*int(n/line))
+            pointx = 0 + ((target+5) * (n%line))
+            pointy = text_img.size[1]+10 + ((target+5)*int(n/line))
             img.paste(im, (pointx, pointy), img_rounded(im.size, 8))
 
         return img
