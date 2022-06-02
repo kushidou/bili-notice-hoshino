@@ -1,14 +1,19 @@
-# bili_notice_hoshino
+# bili动态监视器(Hoshino插件)
 
 [![Lisence-GPL3.0](https://img.shields.io/github/license/kushidou/bili-notice-hoshino)]((LICENSE))
 ![PythonVer](https://img.shields.io/badge/python-3.8+-blue)
 [![HoshinoVer](https://img.shields.io/badge/Hoshino-v2.0.0%2B-green)](https://github.com/Ice-Cirno/HoshinoBot)
-[![Version](https://img.shields.io/badge/Beta-v0.b.3.1-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
+[![Version](https://img.shields.io/badge/Beta-v0.b.3.2-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
 [![Q群](https://img.shields.io/badge/QQ%E7%BE%A4-655742099-yellow)](https://jq.qq.com/?_wv=1027&k=CXGsKj1P)
 
 ## Desc 简介
 
 用于视奸指定up主，并将其最新的动态信息推送到申请的群里。
+
+<figure class="half">
+    <img src="./res/pic_markdown/效果图.png" width="300"/>
+    <img src="./res/pic_markdown/生成图.png" width="300"/>
+</figure>
 
 ## 功能：
 
@@ -16,6 +21,7 @@
 > - 在群中关联up主，可以推送包括动态、视频、短视频、音频、相簿在内的绝大多数动态信息（不支持直播）。
 > - ~~支持过滤转发的互动抽奖动态（简单粗暴的关键词过滤），默认不发送含“恰饭”内容，可以请管理员添加关键词屏蔽~~。（还没做，只能手动改配置文件）
 > - ~~机器人管理员和群主、群管理可以直接增加视奸的up主，普通群员的申请信息会私发到机器人管理员处进行处理。~~（还没做，任何人都可以添加和删除）
+
 
 ## 部署
 
@@ -64,6 +70,18 @@
 由于插件刚刚推出beta版，不仅功能没做完，还有很多隐形bug，因此 `bili_notice_test.py` 提供了一个debug的方法，该方法只能机器人的管理员使用。
 
 发送"测试动态\[dynamic_id\]"或者"测试up\[uid\]"即可让机器人立即尝试发送一条动态，来查看问题出在哪里。报告问题时也请提供该方法得到的错误日志。
+
+### 4-机器人管理指令
+
+支持机器人管理员调整bili动态监视器的全局配置，比如是否过滤转发抽奖、是否进行关键词屏蔽等。比如：
+
+`bili-ctl black-words 23947287 add 拼多多 pdd`
+
+|功能|指令|参数1|参数2-n|备注
+|---|-----|-------|---------|---|
+|过滤抽奖|islucky|uid|true\|false|是否屏蔽抽奖开奖动态或者转发的抽奖。|
+|关键词过滤|black-words|uid|add 关键词1 关键词2|add 增加关键词，remove移除，list输出|
+|更新信息|update| - | - |立即读取配置文件，更新配置（不检查合法性，可能引发错误）
 
 <figure class="half">
     <img src="./res/pic_markdown/debug-测试动态.png" width="300"/>

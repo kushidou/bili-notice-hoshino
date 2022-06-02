@@ -34,6 +34,7 @@ class Card(object):
         # 初始化时，解析部分基础信息，然后判断Type等
         self.latest = dylist["data"]["cards"][0]
         self.dytype = self.latest["desc"]["type"]
+        self.dyorigtype=self.latest["desc"]["orig_type"]
         self.dyid   = self.latest["desc"]["dynamic_id"]
         self.dyidstr= self.latest["desc"]["dynamic_id_str"]
         self.dytime = self.latest["desc"]["timestamp"]
@@ -71,12 +72,16 @@ class Card(object):
     def is_realtime(self, timeinterval: int):
         return False if timeinterval*60 < (int(time.time()) - self.dytime) else True
 
-    def check_black_words(self, blk):
+    def check_black_words(self, blk, islucky):
         ret = False
         for b in blk:
             if json.dumps(self.card).count(b):
                 ret = True
                 log.debug(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
+        if islucky == True:
+            if self.dytype == 1:
+                if "互动抽奖" in self.card["origin"].dumps():
+                    ret = True
         return ret
 
 
@@ -131,6 +136,9 @@ class Card(object):
             log.debug(f'Get comment num={commentnum} form dynamic.desc.comment because Type={self.dytype}')
         elif self.dytype == 8:
             commentnum = self.card["stat"]["reply"]
+            log.debug(f'Get comment num={commentnum} form dynamic.card.stat.comment because Type={self.dytype}')
+        elif self.dytype == 64:
+            commentnum = self.card["stats"]["reply"]
             log.debug(f'Get comment num={commentnum} form dynamic.card.stat.comment because Type={self.dytype}')
         else:
             commentnum = 114514
@@ -280,11 +288,19 @@ class Card(object):
 
     # Type=16   小视频      smallVideo      ( 其实叫短视频，但我突然就像这么称呼了。根据实际测试小视频的卡片和正常视频差不多)
     def drawsmallVideo(self, content, box, is_rep=False):
-        pass
+        return self.drawVideo(content, box, is_rep)
 
     # Type=64   专栏        Article
     def drawArticle(self, content, box, is_rep=False):
-        pass
+        imgs = []
+        img_urls = content["image_urls"]
+        for url in img_urls:
+            imgs.append(get_Image(Type="image", url=url))
+        title = content["title"]
+        summary= content["summary"]
+        template = content["template_id"]
+
+        
 
     # Type=256  番剧        Bangumi         （使用b站官号的一条动态来渲染）
     def drawBangumi(self, content, box, is_rep=False):
@@ -978,7 +994,7 @@ def img_resize(s):
     x,y=s[0],s[1]
     B=max(s)
     S=min(s)
-    cut = None
+    cut = 0
     if x==y:        #正方形的图
         if x<target_min:
             ns=(target_min,target_min)
@@ -993,7 +1009,7 @@ def img_resize(s):
             if B/S < 4/3 :               # 图像比例正常
                 if S > target_max:
                     nx = target_max
-                    ny = (nx*3/4) if x>y else (nx*4/3) 
+                    ny = (nx*x/y)
             else:                       # 长图，需要截取
                 if x<y:                     # 纵图 ，y要长一点
                     nx = x if (x<target_max) else target_max

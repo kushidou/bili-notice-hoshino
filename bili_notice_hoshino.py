@@ -9,6 +9,11 @@ from .res import drawCard
 import hoshino
 from hoshino import Service, log, priv, get_bot
 
+available_type=[
+    2,      # Picture
+    4,      # text
+    8       # video
+]
 
 # 程序初始化代码
 curpath = dirname(__file__)
@@ -74,9 +79,7 @@ async def get_update():
                 number = 0
             else:
                 number = number+1
-        
-        
-    
+     
     group_list = this_up["group"]
     if this_up["watch"]:
         
@@ -99,14 +102,15 @@ async def get_update():
             up_latest[uid_str].append(dynamic.dyid)         # 把动态加入肯德基豪华午餐
             with open(up_dir+uid_str+'.json','w') as f:
                     json.dump({"history":up_latest[uid_str]}, f, ensure_ascii=False)
-            if not dynamic.check_black_words(this_up["ad_keys"]):  # 如果触发过滤关键词，则忽视该动态
+            if not dynamic.check_black_words(this_up["ad_keys"], this_up["islucky"]):  # 如果触发过滤关键词，则忽视该动态
                 if dynamic.is_realtime(30):             # 太久的动态不予发送
                 # if True:
-                    drawBox = drawCard.Box(650, 1200)
-                    dyimg, dytype = dynamic.draw(drawBox)
+                    if dynamic.dytype in available_type or (dynamic.dytype==1 and dynamic.dyorigtype in available_type):
+                        drawBox = drawCard.Box(650, 1200)
+                        dyimg, dytype = dynamic.draw(drawBox)
                 
-                    msg = f"{dynamic.nickname} {dytype}, 点击连接直达：\n https://t.bilibili.com/{dynamic.dyidstr}  \n[CQ:image,file={dyimg}]"
-                    group_list = this_up["group"]
+                        msg = f"{dynamic.nickname} {dytype}, 点击链接直达：\n https://t.bilibili.com/{dynamic.dyidstr}  \n[CQ:image,file={dyimg}]"
+                        group_list = this_up["group"]
                     
                 else:
                     print(f"this is too old.{(dynamic.dytime - int(time.time()))/60}")
@@ -116,7 +120,7 @@ async def get_update():
 
 
 
-@sv.scheduled_job('interval', seconds=30)       # 时间可以按需调整，监视的up多就短一点。但是不能太短，至少15s吧，防止被屏蔽
+@sv.scheduled_job('interval', seconds=15)       # 时间可以按需调整，监视的up多就短一点。但是不能太短，至少5s吧，防止被屏蔽
 async def bili_watch():
     global up_latest, up_list
     if up_list:
@@ -125,6 +129,7 @@ async def bili_watch():
             bot=get_bot()
             for gid in grp:
                 await bot.send_group_msg(group_id=gid, message=msg)
+                time.sleep(1)
                 # print(f'Send Dynamic message to {gid}')
 
 
@@ -185,7 +190,7 @@ async def bili_add(bot, ev):
 
 @sv.on_prefix(["取关","取消关注"],only_to_me=True)
 async def bili_add(bot, ev):
-    global up_latest, up_list
+    global up_list
     uid = ev.message.extract_plain_text()
     if not uid.isdigit():
         msg = '请输入正确的UID!'
@@ -205,4 +210,89 @@ async def bili_add(bot, ev):
     await bot.send(ev,msg)
 
 
+@sv.on_prefix("bili-ctl ")
+async def bili_ctl(bot,ev):
+    global up_group_info, up_list
+    if not await check_rights(ev):
+        await bot.send(ev, "你没有权限这么做")
+        return
+    para = ev.message.extract_plain_text().split()
+    print(para)
+    msg = '指令有误，请检查! "bili-ctl help" 可以查看更多信息'
+    try:
+        cmd = para[0]
+    except:
+        cmd = "help"
+    paranum = len(para)
 
+    if cmd == "black-words":
+        if paranum >= 3:
+            uid = para[1]
+            fun = para[2]
+            if uid not in up_list:
+                msg = 'UP主未关注,请检查uid!'
+            else:
+                if fun == "list":
+                    uname = up_group_info[uid]["uname"]
+                    msg = f'您已经为 {uname} 设置了一下过滤关键词：\n{up_group_info[uid]["ad_keys"]}'
+                elif fun == "add":
+                    if paranum >3:
+                        keys = para[3:]
+                        try:
+                            up_group_info[uid]["ad_keys"].extend(keys)
+                            with open(join(up_dir,'list.json'), 'w') as f:      # 更新UP主列表
+                                json.dump(up_group_info, f, ensure_ascii=False)
+                            msg = f'添加成功.'
+                        except:
+                            msg = f'添加失败'
+                elif fun == "remove":
+                    if paranum>3:
+                        keys = para[3:]
+                        erkeys=[]
+                        for wd in keys:
+                            try:
+                                up_group_info[uid]["ad_keys"].remove(wd)
+                            except:
+                                erkeys.append(wd)
+                        with open(join(up_dir,'list.json'), 'w') as f:      # 更新UP主列表
+                            json.dump(up_group_info, f, ensure_ascii=False)
+                        msg = '移除成功。'
+                        if erkeys:
+                            msg = msg+f'一下关键词移除失败，可能是没有这些关键词:\n{erkeys}'
+    elif cmd == "islucky":
+        if paranum == 3:
+            uid = para[1]
+            fun = para[2]
+            if uid not in up_list:
+                msg = 'UP主未关注,请检查uid!'
+            else:
+                msg = f'已为 {up_group_info[uid]["uname"]} 更新抽奖开奖动态的设置。'
+                if fun.upper() == "TRUE":
+                    up_group_info[uid]["islucky"] = True
+                elif fun.upper() == "FALSE":
+                    up_group_info[uid]["islucky"] = False
+                else:
+                    msg = "参数错误，请重试。"
+                with open(join(up_dir,'list.json'), 'w') as f:      # 更新UP主列表
+                            json.dump(up_group_info, f, ensure_ascii=False)
+    elif cmd.upper() == "UPDATE":
+        with open(join(up_dir,'list.json'), 'r') as f:
+            up_group_info = json.load(f)
+        msg = "信息更新完成!"
+
+    elif cmd == "help":
+        msg = """=== bili-notice-hoshino 帮助 ===
+        
+    bili-ctl para1 para2 para3 [...]
+    关键词过滤  black-words  uid  add/remove 拼多多 pdd ... 
+    查看关键词  black-words  uid  list  
+    开奖动态   islucky  uid  true/false
+    立即更新    update
+    帮助菜单   help   """
+
+    await bot.send(ev,msg)
+    
+async def check_rights(ev):
+    if priv.check_priv(ev, priv.ADMIN):
+        return True
+    return False
