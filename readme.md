@@ -18,37 +18,37 @@
 ## 功能：
 
 > - 获取UP主最新的动态，生成图片发送到群里
-> - 在群中关联up主，可以推送包括动态、视频、短视频、音频、相簿在内的绝大多数动态信息（不支持直播）。
-> - ~~支持过滤转发的互动抽奖动态（简单粗暴的关键词过滤），默认不发送含“恰饭”内容，可以请管理员添加关键词屏蔽~~。（还没做，只能手动改配置文件）
-> - ~~机器人管理员和群主、群管理可以直接增加视奸的up主，普通群员的申请信息会私发到机器人管理员处进行处理。~~（还没做，任何人都可以添加和删除）
+> - 在群中关联up主，可以推送包括动态、视频、短视频、~~音频、专栏文章、~~相簿在内的绝大多数动态信息（不支持直播）。
+> - 支持过滤转发的互动抽奖动态、广告（简单粗暴的关键词过滤），可以由**机器人管理员**控制。
+> - ~~机器人管理员和群主、群管理可以直接增加视奸的up主，普通群员的申请信息会私发到机器人管理员处进行处理。~~（还没做，仅群管理可以关注和取关）
 
 
 ## 部署
 
-1. 进入到Hoshino的modules目录
+1. 进入到Hoshino的modules目录，克隆项目
 
 `git clone https://github.com/kushidou/bili-notice-hoshino`
 
-2. 安装几个python包
+2. 安装几个python包（也可以手动pip安装）
 
 `pip install -r ./requirements.txt `
 
-3. 将uppers_example重命名 uppers
+3. 将uppers_example重命名为 uppers
 
 4. 在`config/__bot__.py`的`MODULES_ON`中，添加`"bili_notice_hoshino"`，然后重启HoshinoBot。
 
 <details>
   <summary>插件内文件说明</summary>
 
-**bili_notice_hoshino.py** ==>  主程序
-
-**res** ==>  目录保存渲染所需要的图片文件和字体;以及缓存图片，以md5命名
-
-**uppers/uid.json** ==>  保存各个up主的已发送动态列表(防止程序调试等情况反复重发)
-
-**uppers/list.json** ==>  记录up主和群的对应关系，及几个配置。
-
-**log/xxx.log** ==>  日志，按日分类，最长七天。仍在测试中，暂不支持修改。
+> **bili_notice_hoshino.py** ==>  主程序
+>
+> **res** ==>  目录保存渲染所需要的图片文件和字体;以及缓存图片，以md5命名
+>
+> **uppers/uid.json** ==>  保存各个up主的已发送动态列表(防止程序调试等情况反复重发)
+>
+> **uppers/list.json** ==>  记录up主和群的对应关系，及几个配置。
+>
+> **log/xxx.log** ==>  日志，按日分类，最长七天。仍在测试中，暂不支持修改。
 </details>
 
 ## 使用
@@ -71,6 +71,11 @@
 
 发送"测试动态\[dynamic_id\]"或者"测试up\[uid\]"即可让机器人立即尝试发送一条动态，来查看问题出在哪里。报告问题时也请提供该方法得到的错误日志。
 
+<figure class="half">
+    <img src="./res/pic_markdown/debug-测试动态.png" width="300"/>
+    <img src="./res/pic_markdown/debug-测试up.png" width="300"/>
+</figure>
+
 ### 4-机器人管理指令
 
 支持机器人管理员调整bili动态监视器的全局配置，比如是否过滤转发抽奖、是否进行关键词屏蔽等。比如：
@@ -80,13 +85,8 @@
 |功能|指令|参数1|参数2-n|备注
 |---|-----|-------|---------|---|
 |过滤抽奖|islucky|uid|true\|false|是否屏蔽抽奖开奖动态或者转发的抽奖。|
-|关键词过滤|black-words|uid|add 关键词1 关键词2|add 增加关键词，remove移除，list输出|
+|关键词过滤|black-words|uid|add 关键词1 关键词2|add 增加关键词，remove移除，list列出已经设置的关键词|
 |更新信息|update| - | - |立即读取配置文件，更新配置（不检查合法性，可能引发错误）
-
-<figure class="half">
-    <img src="./res/pic_markdown/debug-测试动态.png" width="300"/>
-    <img src="./res/pic_markdown/debug-测试up.png" width="300"/>
-</figure>
 
 ## 后记
 
@@ -100,23 +100,22 @@
 
 [SocialSisterYi/bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect)
 
-<details>
-<summary>ToDo</summary>
 
-> 完善对专栏文章、小视频的支持，慢慢完善对番剧、影视剧集等一般人不会发的类型的支持
->
-> 支持群聊内自定义过滤词，比如“运营代转”
->
-> 优化文字绘制，更清晰锐利
->
-> 支持直播开播推送，支持手动拉取特定的多条动态
->
-> 修复即将遇到的各种奇奇怪怪的BUG
->
-> UP主信息换用数据库存储，提高容量(咕咕咕~等我先学一下数据库的基础)
->
-> 提供移植指南，开发适用于其他bot或者nonebot1、nonebot2的插件版本
+#### ToDo
 
-</details>
+- [ ] 完善对专栏文章、小视频的支持，慢慢完善对番剧、影视剧集等一般人不会发的类型的支持
+
+- [x] 支持自定义过滤词，比如“运营代转”
+
+- [ ] 优化文字绘制，更清晰锐利
+
+- [ ] 支持直播开播推送，支持手动拉取特定的多条动态
+
+修复即将遇到的各种奇奇怪怪的BUG
+
+- [ ] UP主信息换用数据库存储，提高容量(咕咕咕~等我先学一下数据库的基础)
+
+- [ ] 提供移植指南，开发适用于其他bot或者nonebot1、nonebot2的插件版本
+
 
 

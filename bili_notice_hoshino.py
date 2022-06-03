@@ -138,6 +138,9 @@ async def bili_watch():
 @sv.on_prefix("关注",only_to_me=True)
 async def bili_add(bot, ev):
     global up_latest, up_list
+    if not await check_rights(ev, level=0):
+        await bot.send(ev, "你没有权限这么做")
+        return
     uid = ev.message.extract_plain_text()
     print(f'收到观察命令:UID={uid}, from {ev.group_id}')
     if not uid.isdigit():
@@ -191,6 +194,9 @@ async def bili_add(bot, ev):
 @sv.on_prefix(["取关","取消关注"],only_to_me=True)
 async def bili_add(bot, ev):
     global up_list
+    if not await check_rights(ev, level=0):
+        await bot.send(ev, "你没有权限这么做")
+        return
     uid = ev.message.extract_plain_text()
     if not uid.isdigit():
         msg = '请输入正确的UID!'
@@ -213,9 +219,7 @@ async def bili_add(bot, ev):
 @sv.on_prefix("bili-ctl ")
 async def bili_ctl(bot,ev):
     global up_group_info, up_list
-    if not await check_rights(ev):
-        await bot.send(ev, "你没有权限这么做")
-        return
+    
     para = ev.message.extract_plain_text().split()
     print(para)
     msg = '指令有误，请检查! "bili-ctl help" 可以查看更多信息'
@@ -236,6 +240,9 @@ async def bili_ctl(bot,ev):
                     uname = up_group_info[uid]["uname"]
                     msg = f'您已经为 {uname} 设置了一下过滤关键词：\n{up_group_info[uid]["ad_keys"]}'
                 elif fun == "add":
+                    if not await check_rights(ev, level=1):
+                        await bot.send(ev, "你没有权限这么做")
+                        return
                     if paranum >3:
                         keys = para[3:]
                         try:
@@ -246,6 +253,9 @@ async def bili_ctl(bot,ev):
                         except:
                             msg = f'添加失败'
                 elif fun == "remove":
+                    if not await check_rights(ev, level=1):
+                        await bot.send(ev, "你没有权限这么做")
+                        return
                     if paranum>3:
                         keys = para[3:]
                         erkeys=[]
@@ -260,6 +270,9 @@ async def bili_ctl(bot,ev):
                         if erkeys:
                             msg = msg+f'一下关键词移除失败，可能是没有这些关键词:\n{erkeys}'
     elif cmd == "islucky":
+        if not await check_rights(ev, level=1):
+            await bot.send(ev, "你没有权限这么做")
+            return
         if paranum == 3:
             uid = para[1]
             fun = para[2]
@@ -276,23 +289,34 @@ async def bili_ctl(bot,ev):
                 with open(join(up_dir,'list.json'), 'w') as f:      # 更新UP主列表
                             json.dump(up_group_info, f, ensure_ascii=False)
     elif cmd.upper() == "UPDATE":
+        if not await check_rights(ev, level=1):
+            await bot.send(ev, "你没有权限这么做")
+            return
         with open(join(up_dir,'list.json'), 'r') as f:
             up_group_info = json.load(f)
         msg = "信息更新完成!"
 
     elif cmd == "help":
-        msg = """=== bili-notice-hoshino 帮助 ===
-        
-    bili-ctl para1 para2 para3 [...]
-    关键词过滤  black-words  uid  add/remove 拼多多 pdd ... 
-    查看关键词  black-words  uid  list  
-    开奖动态   islucky  uid  true/false
-    立即更新    update
-    帮助菜单   help   """
+        msg = \
+"""=== bili-notice-hoshino 帮助 ===
+    
+bili-ctl para1 para2 para3 [...]
+关键词过滤  black-words  uid  add/remove 拼多多 pdd ... 
+查看关键词  black-words  uid  list  
+开奖动态   islucky  uid  true/false
+立即更新    update
+帮助菜单   help
+*功能性指令只能由机器人管理员操作*"""
 
     await bot.send(ev,msg)
     
-async def check_rights(ev):
+async def check_rights(ev, level=0):
+    # 返回权限是否通过。
+    # 低等级（0）支持群管理和机器人管理员，高等级（1）仅支持机器人管理员
+    ret = False
     if priv.check_priv(ev, priv.ADMIN):
-        return True
-    return False
+        ret = True
+    if not level:
+        if priv.get_user_priv(ev) in [priv.OWNER, priv.ADMIN]:
+            ret = ret or True
+    return ret
