@@ -1,9 +1,12 @@
 import os, json, time, io, re, base64
+from string import whitespace
+from turtle import width
 from loguru import logger as log
 
 from math import ceil
 from os.path import dirname, join, exists
 from PIL import Image,ImageFont,ImageDraw,ImageFilter
+from numpy import character
 
 from .getImg import get_ico, get_Image, round_mask
 
@@ -74,13 +77,16 @@ class Card(object):
 
     def check_black_words(self, blk, islucky):
         ret = False
+        txt = json.dumps(self.card, ensure_ascii=False)
         for b in blk:
-            if json.dumps(self.card).count(b):
+            log.debug(f'black-words: find {b} {txt.count(b)} times!')
+            if txt.count(b):
                 ret = True
                 log.debug(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
         if islucky == True:
             if self.dytype == 1:
                 if "互动抽奖" in self.card["origin"].dumps():
+                    log.info('动态为转发的抽奖内容，即将屏蔽。')
                     ret = True
         return ret
 
@@ -89,7 +95,7 @@ class Card(object):
     def draw(self, box:object()):
         # 解析通用的信息，并绘制头像、昵称、背景、点赞box，然后调用其他绘制动态主体，最后把所有box合成
         # 制作头像  == faceimg ==
-        log.info('====== New Dynamic Card =====')
+        log.info('========== New Dynamic Card =========')
         log.info(f"UID={self.nickname}({self.uid}), Dynamic_id={self.dyid}, Type={int(self.dytype)}")
 
         face=get_Image(Type="face",url=self.latest["desc"]["user_profile"]["info"]["face"])
@@ -216,7 +222,7 @@ class Card(object):
         bio = io.BytesIO()
         bgimg.save(bio, format="PNG")
         base64_img = 'base64://' + base64.b64encode(bio.getvalue()).decode()
-        log.info('Congratulations! Dynamic Card Image is generated successfully. Encode "base64" and send to QQbot.')
+        log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.\n')
 
         return base64_img, ret_txt
         
@@ -238,6 +244,8 @@ class Card(object):
             img_ori = self.drawobj(content["origin"], box, is_rep=True)
         elif oritype == 8:  # 转发视频
             img_ori = self.drawVideo(content["origin"], box, is_rep=True)
+        elif oritype == 64: # 转发专栏文章
+            img_ori = self.drawArticle(content["origin"], box, is_rep=True)
 
         img = box.repost(orface, orname, img_now, img_ori)
         return img
@@ -299,6 +307,9 @@ class Card(object):
         title = content["title"]
         summary= content["summary"]
         template = content["template_id"]
+
+        img = box.article(title, summary, imgs, template, is_rep)
+        return img
 
         
 
@@ -809,8 +820,84 @@ class Box(object):
     # ====================box.article====================
     # 绘制专栏的卡片，未确定
     # return 图片对象，高
-    def article(self,a, is_reposted=False):
-        pass
+    def article(self, title:str, summary:str, images:list, template:int, is_reposted=False):
+        width_of_card = self.width - 88 - 12 - 30
+        img = Image.new('RGBA', (width_of_card, 200), 'white')
+        log.debug(f'Size of atricle-box=({width_of_card}, 200)')
+        draw = ImageDraw.Draw(img)
+        fontbig = ImageFont.truetype(self.msyh, 16)
+        fontsmall=ImageFont.truetype(self.msyh, 12)
+        # 头图
+        if template == 4:       # 单头图
+            log.info('头图数量：1')
+            timg = images[0]
+            tsize = timg.size
+            if tsize[0]/tsize[1] < width_of_card/120:        # 图片较方
+                timg = timg.resize((width_of_card, int(width_of_card * (tsize[1]/tsize[0]))), Image.ANTIALIAS)
+            else:               # 图片狭长
+                timg = timg.resize((int(120 * (tsize[0]/tsize[1])), 120), Image.ANTIALIAS)
+            log.debug(f'头图缩放: raw{tsize} ==> new{timg.size}')
+            tsize = timg.size
+            tsize_win = ( (
+                tsize[0]/2 - (width_of_card-4)/2, 0,
+                tsize[0]/2 + (width_of_card-4)/2, 120
+            ) )
+            log.debug(f'头图裁切: win={tsize_win}')
+            timg = timg.crop(tsize_win)
+            img.paste(timg, (0,0))
+        elif template == 3:         # 三头图
+            log.info('头图数量：3')
+            xsize=int((width_of_card - 10) /3)
+            log.debug(f'头图宽度为{xsize}')
+            for n,im in enumerate(images):
+                tsize = im.size
+                if tsize[0]/tsize[1] < xsize/120:        # 图片较方
+                    im = im.resize((xsize, int(xsize * (tsize[1]/tsize[0]))), Image.ANTIALIAS)
+                else:               # 图片狭长
+                    im = im.resize((int(120 * (tsize[0]/tsize[1])), 120), Image.ANTIALIAS)
+                tsize = im.size
+                tsize_win = ( (
+                    tsize[0]/2 - (xsize-4)/2, 0,
+                    tsize[0]/2 + (xsize-4)/2, 120
+                ) )
+                im = im.crop(tsize_win)
+                log.debug(f'头图{n}的缩放尺寸{tsize}, 裁剪尺寸{tsize_win}')
+                img.paste(im, (0+n*(xsize+5), 0))
+                log.debug(f'第{n}幅头图位置:({0+n*(xsize+5)}, 0)')
+        # 标题
+        point = (20, 120+10)
+        if len(title)>35:
+            title = title[0:30] + '......'
+        draw.text(point, text=title, fill=(33,33,33,255), font=fontbig)
+
+        # 简介文字
+        point = (20, 120 + 10 + 22 + 6) # 头图+间隔+标题+间隔
+        line, cha = 0,0
+        while(1):
+            ch = summary[0]
+            draw.text(point, ch, fill=(102, 102, 102, 255), font=fontsmall)
+            if len(summary) > 2:
+                ch1 = summary[1]
+                gap = chgap(ch, ch1, 12/2)
+            point = (point[0]+gap, point[1])
+            if point[0] + 6 + 20 > width_of_card:
+                line +=1
+                point = (20, 120 + 10 + 22 + 6 + line*19)
+            if line>=1 and point[0] + 36 + 20> width_of_card:       # 文字过长，需要截断并省略
+                draw.text(point, '...', fill=(102, 102, 102, 255), font=fontsmall)
+                break
+            if len(summary) == 1:       # 文字展示结束
+                break
+            summary=summary[1:]
+        
+        bg = Image.new('RGBA', (img.size[0]+2, img.size[1]+2), (0,0,0,0))
+        bgdraw = ImageDraw.Draw(bg)
+        color_info = (153, 153, 153, 255)
+        bgdraw.rounded_rectangle(((0,0),(bg.size[0]-1,bg.size[1]-1)), 
+                    radius=4, fill=(0,0,0,0), outline=(color_info),width=1)
+        bg.paste(img, (1,1), mask=img_rounded(img.size, r=4))
+
+        return bg
 
     # ====================box.bangumi====================
     # 番剧发布和分享的卡片，未确认
@@ -824,6 +911,9 @@ class Box(object):
     def h5(a, is_reposted=False):
         pass
 
+
+
+#=============================EX functions====================================
 def num_human(input):
     # 小于9.9k则返回原来状态
     if input < 9900:
@@ -950,6 +1040,8 @@ def analyze_extra(latest: dict, card: dict):
 def chgap(ch:str, chnxt, base):
     #计算字符间距，都是英文则正常间距，且li等字符较瘦。中英、英中及中文之间2倍宽度，日文同理
     #瘦长
+    if ch == " ":
+        return base
     if chnxt == None:
         chnxt = '\uffff'
     num = 2*base

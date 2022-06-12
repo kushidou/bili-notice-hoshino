@@ -12,7 +12,8 @@ from hoshino import Service, log, priv, get_bot
 available_type=[
     2,      # Picture
     4,      # text
-    8       # video
+    8,      # video
+    64      # article
 ]
 
 # 程序初始化代码
@@ -238,7 +239,7 @@ async def bili_ctl(bot,ev):
             else:
                 if fun == "list":
                     uname = up_group_info[uid]["uname"]
-                    msg = f'您已经为 {uname} 设置了一下过滤关键词：\n{up_group_info[uid]["ad_keys"]}'
+                    msg = f'您已经为 {uname} 设置了以下过滤关键词：\r\n{up_group_info[uid]["ad_keys"]}'
                 elif fun == "add":
                     if not await check_rights(ev, level=1):
                         await bot.send(ev, "你没有权限这么做")
@@ -268,7 +269,7 @@ async def bili_ctl(bot,ev):
                             json.dump(up_group_info, f, ensure_ascii=False)
                         msg = '移除成功。'
                         if erkeys:
-                            msg = msg+f'一下关键词移除失败，可能是没有这些关键词:\n{erkeys}'
+                            msg = msg+f'以下关键词移除失败，可能是没有这些关键词:\n{erkeys}'
     elif cmd == "islucky":
         if not await check_rights(ev, level=1):
             await bot.send(ev, "你没有权限这么做")
@@ -307,7 +308,10 @@ bili-ctl para1 para2 para3 [...]
 立即更新    update
 帮助菜单   help
 *功能性指令只能由机器人管理员操作*"""
-
+    msg = msg.replace("'", '')
+    msg = msg.replace('[','')
+    msg = msg.replace(']','')
+    print(f'bili-ctl return msg: {msg}')
     await bot.send(ev,msg)
     
 async def check_rights(ev, level=0):
