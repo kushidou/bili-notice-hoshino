@@ -3,7 +3,7 @@
 [![Lisence-GPL3.0](https://img.shields.io/github/license/kushidou/bili-notice-hoshino)]((LICENSE))
 ![PythonVer](https://img.shields.io/badge/python-3.8+-blue)
 [![HoshinoVer](https://img.shields.io/badge/Hoshino-v2.0.0%2B-green)](https://github.com/Ice-Cirno/HoshinoBot)
-[![Version](https://img.shields.io/badge/Beta-v0.b.3.2-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
+[![Version](https://img.shields.io/badge/Beta-v0.b.4.1-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
 [![Q群](https://img.shields.io/badge/QQ%E7%BE%A4-655742099-yellow)](https://jq.qq.com/?_wv=1027&k=CXGsKj1P)
 
 ## Desc 简介
@@ -21,6 +21,7 @@
 > - 在群中关联up主，可以推送包括动态、视频、短视频、专栏文章、~~音频、~~相簿在内的绝大多数动态信息（不支持直播）。
 > - 支持过滤转发的互动抽奖动态、广告（简单粗暴的关键词过滤），可以由**机器人管理员**控制。
 > - ~~机器人管理员和群主、群管理可以直接增加视奸的up主，普通群员的申请信息会私发到机器人管理员处进行处理。~~（还没做，仅群管理可以关注和取关）
+> - 协议、业务分离设计，方便不同机器人移植！ 接口文档即将更新~~
 
 
 ## 部署
@@ -103,7 +104,9 @@
 
 #### ToDo
 
-- [ ] 完善对专栏文章、小视频的支持，慢慢完善对番剧、影视剧集等一般人不会发的类型的支持
+- [x] 完善对专栏文章、小视频的支持
+
+- [x] 慢慢完善对番剧、影视剧集等一般人不会发的类型的支持
 
 - [x] 支持自定义过滤词，比如“运营代转”
 
@@ -111,11 +114,11 @@
 
 - [ ] 支持直播开播推送，支持手动拉取特定的多条动态
 
-修复即将遇到的各种奇奇怪怪的BUG
+- [ ] 修复即将遇到的各种奇奇怪怪的BUG
 
 - [ ] UP主信息换用数据库存储，提高容量(咕咕咕~等我先学一下数据库的基础)
 
-- [ ] 提供移植指南，开发适用于其他bot或者nonebot1、nonebot2的插件版本
+- [x] 提供移植指南，开发适用于其他bot或者nonebot1、nonebot2的插件版本
 
 
 

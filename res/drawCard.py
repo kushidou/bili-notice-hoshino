@@ -1,12 +1,8 @@
 import os, json, time, io, re, base64
-from string import whitespace
-from turtle import width
 from loguru import logger as log
-
 from math import ceil
 from os.path import dirname, join, exists
 from PIL import Image,ImageFont,ImageDraw,ImageFilter
-from numpy import character
 
 from .getImg import get_ico, get_Image, round_mask
 
@@ -16,10 +12,10 @@ def initlog():
     if not exists(path_log):
         os.mkdir(path_log)
     log.add(
-        path_log+'drawCard_{time:YYYY-MM-DD}.log',
+        path_log+'{time:YYYY-MM-DD}.log',
         level="DEBUG",
         rotation="04:00",
-        retention="3 days",
+        retention="7 days",
         backtrace=True,
         enqueue=True,
         diagnose=True,              # 调试，生产请改为False
@@ -79,15 +75,17 @@ class Card(object):
         ret = False
         txt = json.dumps(self.card, ensure_ascii=False)
         for b in blk:
-            log.debug(f'black-words: find {b} {txt.count(b)} times!')
+            log.info(f'black-words: find {b} {txt.count(b)} times!')
             if txt.count(b):
                 ret = True
-                log.debug(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
+                log.info(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
         if islucky == True:
             if self.dytype == 1:
-                if "互动抽奖" in self.card["origin"].dumps():
+                if "互动抽奖" in str(self.card["origin"]):
                     log.info('动态为转发的抽奖内容，即将屏蔽。')
                     ret = True
+                else:
+                    log.info('动态为普通转发内容，放行。')
         return ret
 
 
@@ -95,9 +93,8 @@ class Card(object):
     def draw(self, box:object()):
         # 解析通用的信息，并绘制头像、昵称、背景、点赞box，然后调用其他绘制动态主体，最后把所有box合成
         # 制作头像  == faceimg ==
-        log.info('========== New Dynamic Card =========')
-        log.info(f"UID={self.nickname}({self.uid}), Dynamic_id={self.dyid}, Type={int(self.dytype)}")
-
+        
+        log.info("~~ Start to draw dynamic card pciture ~~")
         face=get_Image(Type="face",url=self.latest["desc"]["user_profile"]["info"]["face"])
         face_pendant_url= self.latest["desc"]["user_profile"]["pendant"]["image"]
         if not face_pendant_url == "":
@@ -133,19 +130,19 @@ class Card(object):
         isVIP    = True if (self.latest["desc"]["user_profile"]["vip"]["vipType"] == 2) else False
         pubtime  = time.strftime("%y-%m-%d %H:%M", time.localtime(float(self.dytime)))
         nickimg = box.nickname(nick=nickname, time=pubtime, isBigVIP=isVIP)
-        log.info(f'Name and Time Box: nickname={nickname}, color={"pink" if isVIP else "black"}, time="{pubtime}", timeStamp={self.dytime};\nBoxSize={nickimg.size}')
+        log.info(f'Name&Time Box: nickname={nickname}, color={"pink" if isVIP else "black"}, time="{pubtime}"({self.dytime});BoxSize={nickimg.size}')
 
         #制作一键三连   == bottom ==
         sharenum   = self.latest["desc"]["repost"]
         if self.dytype in [1,2,4]:
             commentnum = self.latest["desc"]["comment"]
-            log.debug(f'Get comment num={commentnum} form dynamic.desc.comment because Type={self.dytype}')
+            log.debug(f'Get comment number={commentnum} form dynamic.desc.comment because Type={self.dytype}')
         elif self.dytype == 8:
             commentnum = self.card["stat"]["reply"]
-            log.debug(f'Get comment num={commentnum} form dynamic.card.stat.comment because Type={self.dytype}')
+            log.debug(f'Get comment number={commentnum} form dynamic.card.stat.comment because Type={self.dytype}')
         elif self.dytype == 64:
             commentnum = self.card["stats"]["reply"]
-            log.debug(f'Get comment num={commentnum} form dynamic.card.stat.comment because Type={self.dytype}')
+            log.debug(f'Get comment number={commentnum} form dynamic.card.stat.comment because Type={self.dytype}')
         else:
             commentnum = 114514
             log.debug('Get comment num fail! Set commentnum = 114514')
@@ -160,25 +157,25 @@ class Card(object):
         # print(self.extra)
         if self.dytype == 1:    #转发   
             bodyimg = self.drawRepost(self.card, box)
-            ret_txt="转发了一则动态"
+            ret_txt="转发"
         elif self.dytype == 2:  #图片
             bodyimg = self.drawImage(self.card, box)
-            ret_txt="发布了新图文动态"
+            ret_txt="图文"
         elif self.dytype == 4:  #文字
             bodyimg = self.drawobj(self.card, box)
-            ret_txt="发布了新动态"
+            ret_txt="新动态"
         elif self.dytype == 8:  #视频
             bodyimg = self.drawVideo(self.card, box)
-            ret_txt="发布了一条新视频"
+            ret_txt="视频"
         elif self.dytype == 16:  #小视频
             bodyimg = self.drawsmallVideo(self.card, box)
-            ret_txt="发布了一条小视频"
+            ret_txt="视频"
         elif self.dytype == 64: #专栏
             bodyimg = self.drawArticle(self.card, box)
-            ret_txt="发布了一篇专栏文章"
+            ret_txt="专栏文章"
         elif self.dytype == 256: #番剧
             bodyimg = self.drawBangumi(self.card, box)
-            ret_txt="发布了一集番剧"
+            ret_txt="番剧"
         elif self.dytype == 2048:    #H5
             bodyimg = self.drawH5Event(self.card, box)
             ret_txt="H5动态"
@@ -662,7 +659,7 @@ class Box(object):
         log.debug(f'ImageBox -> TextBox, ')
         # img = Image.new('RGBA', (text_img.size[0], text_img[1] + maxx*seil(pic_count/3))), (0,0,0,0))
         target = int((text_img.size[0] - 40) / 3 - 5)   # 多图图片大小，尽量放大些
-        length = text_img.size[1] + 10 + ceil((target + 5)*(pic_count/3))
+        length = text_img.size[1] + 10 + (target + 5)*ceil(pic_count/3)
         log.debug(f'ImageBox: length => {text_img.size[1]} + 10 + {target+5} x ({pic_count}/3) = {length}')
         nimage=[]
         if pic_count==1:
@@ -1009,9 +1006,15 @@ def analyze_extra(latest: dict, card: dict):
             topic[t_name]=t_len
     if latest["display"].get("origin"):
         if latest["display"]["origin"].get("topic_info"):
-            topics = latest["display"]["origin"]["topic_info"]["topic_details"]
-            for t in topics:
-                t_name=t["topic_name"]
+            if latest["display"]["origin"]["topic_info"].get("topic_details"):
+                topics = latest["display"]["origin"]["topic_info"]["topic_details"]
+                for t in topics:
+                    t_name=t["topic_name"]
+                    t_len =len(t_name)
+                    topic[t_name]=t_len
+            if latest["display"]["origin"]["topic_info"].get("new_topic"):
+                ntopic = latest["display"]["origin"]["topic_info"]["new_topic"]
+                t_name=ntopic["name"]
                 t_len =len(t_name)
                 topic[t_name]=t_len
 
@@ -1088,6 +1091,7 @@ def img_resize(s):
     S=min(s)
     cut = 0
     if x==y:        #正方形的图
+        log.debug('方形图，缩放到合理范围')
         if x<target_min:
             ns=(target_min,target_min)
         elif(x>target_max):
@@ -1096,12 +1100,18 @@ def img_resize(s):
             ns=(x,y)
     else:                           # 矩形图
         if B< target_max and S > target_min:    # 图像大小在范围内，保持原始分辨率
+            log.debug('矩形图，但比例合理，缩放到合理范围内')
             nx,ny=x,y  
         else:                       # 图像太小或者太大
+            log.debug('长图或宽图，缩放到合理大小并裁剪')
             if B/S < 4/3 :               # 图像比例正常
                 if S > target_max:
-                    nx = target_max
-                    ny = (nx*x/y)
+                    if x>y:
+                        nx = target_max
+                        ny = (nx*y/x)
+                    else:
+                        ny=target_max
+                        nx=(ny*x/y)
             else:                       # 长图，需要截取
                 if x<y:                     # 纵图 ，y要长一点
                     nx = x if (x<target_max) else target_max

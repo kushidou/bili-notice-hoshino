@@ -135,3 +135,5 @@ note.md
 test*
 uppers
 res/cache/*
+config.ini
+*.py.edit
