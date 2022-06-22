@@ -163,7 +163,7 @@ class Card(object):
             ret_txt="图文"
         elif self.dytype == 4:  #文字
             bodyimg = self.drawobj(self.card, box)
-            ret_txt="新动态"
+            ret_txt="动态"
         elif self.dytype == 8:  #视频
             bodyimg = self.drawVideo(self.card, box)
             ret_txt="视频"
