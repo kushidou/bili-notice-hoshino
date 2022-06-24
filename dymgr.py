@@ -1,4 +1,4 @@
-import json, requests, time
+import json, requests, time, datetime
 import configparser as cfg
 import os
 from os.path import dirname, join, exists
@@ -9,7 +9,8 @@ available_type=[
     2,      # Picture
     4,      # text
     8,      # video
-    64      # article
+    64,     # article
+    256     # audio
 ]
 
 help_info="""=== bili-notice-hoshino 帮助 ===
@@ -32,6 +33,7 @@ up_dir = join(curpath,'uppers/')
 number = 0
 up_latest = {}
 up_list=[]
+cache_clean_date = 0
 
 # 初始化日志系统
 drawCard.initlog()
@@ -73,22 +75,28 @@ async def get_update():
 
         dylist = {
             nickname:   str     (昵称，字符串)
-            uid：       num     (uid，数字)
+            uid:        num     (uid,数字)
             type:       num/str (动态类型，由配置文件决定)
-            subtype:    num     (动态子类型。如果非转发，则subtype=type，不会留空)
+            subtype:    num     (动态子类型。如果非转发,则subtype=type,不会留空)
             time:       num/str (时间戳或字符串时间，配置文件决定)
             pic:        str     (base64编码的图片)
             link:       str     (动态的链接)
-            sublink:    str     (如果是视频文章等，这里写他们的链接。普通动态与link相同)
+            sublink:    str     (如果是视频文章等,这里写他们的链接。普通动态与link相同)
             group:      list    (需要发给的群,[num])
         }
 
         
     """
-    global number,up_latest, up_list
+    global number,up_latest, up_list, cache_clean_date
     msg,dyimg,dytype = None,None,None
     rst, suc, fai=0,0,0
     dynamic_list=[]
+
+    # 借用轮询来清理垃圾
+    cache_clean_today = datetime.date.today().day
+    if not cache_clean_today == cache_clean_date:
+        clean_cache()
+        cache_clean_date = cache_clean_today
     
     maxcount = len(up_list)
     while 1:
@@ -130,7 +138,7 @@ async def get_update():
         
         if dynamic.dyid not in up_latest[up_list[number]]:  # 查到新的动态
             log.info('========== New Dynamic Card =========')
-            log.info(f"UP={dynamic.nickname}({dynamic.uid}), Dynamic_id={dynamic.dyid}, Type={int(dynamic.dytype)}")
+            log.info(f"UP={dynamic.nickname}({dynamic.uid}), Dynamic_id={dynamic.dyid}, Type={int(dynamic.dytype)}, ori_type={int(dynamic.dyorigtype)}")
             
             if not dynamic.check_black_words(this_up["ad_keys"], this_up["islucky"]):  # 如果触发过滤关键词，则忽视该动态
                 if dynamic.is_realtime(30):             # 太久的动态不予发送
@@ -159,7 +167,7 @@ async def get_update():
                     log.info(f"This dynamic({dynamic.dyid}) is too old: {(int(time.time()) - dynamic.dytime)/60} minutes ago")
                     fai -=1
             else:
-                log.info("({dynamic.dyid})触发过滤词，或者是转发抽奖动态。")
+                log.info(f"({dynamic.dyid})触发过滤词，或者是转发抽奖动态。\n")
                 fai -= 1 
     number = 0 if number+1>=len(up_list) else number+1
 
@@ -172,10 +180,10 @@ async def get_update():
 
 def follow(uid, group):
     global number,up_latest, up_list
-    """关注UP主，并创建和修改对应的记录文件
+    """关注UP主,并创建和修改对应的记录文件
 
     Args:
-        uid (num): up主的uuid，仅接受通过uuid来关注
+        uid (num): up主的uuid,仅接受通过uuid来关注
         gruop (num): 申请的群
 
     Returns:
@@ -184,7 +192,7 @@ def follow(uid, group):
     """
     if not uid.isdigit():
         msg = '请输入正确的UID!'
-        log.info(f"关注失败，UID错误: {uid}")
+        log.info(f"关注失败,UID错误: {uid}")
         return False, msg
 
     if uid not in up_list:  # 从未添加过
@@ -256,7 +264,7 @@ def follow(uid, group):
                 log.info('关注失败,无法修改list文件或无法创建用户记录文件')
                 return False, "UP主文件写入失败，未知错误，请手动检查配置文件。"
             msg=f'{up_group_info[uid]["uname"]}[{uid}]'
-    log.info('关注成功，群: {group}，用户: {up_group_info[uid]["uname"]}({uid})')
+    log.info(f'关注成功，群: {group}，用户: {up_group_info[uid]["uname"]}({uid})')
     return True, msg
 
 
@@ -388,3 +396,31 @@ def shell(group, para, right):
     msg = msg.replace(']','')
     print(f'bili-ctl return msg: {msg}')
     return True, msg
+
+
+def clean_cache():
+    global up_latest, up_dir
+    cache_clean_time_point = time.time() - 7*3600*24
+    dirname = ["image", "cover", "article_cover"]
+    for t in dirname:
+        for root, dirs, files in os.walk(join(curpath,f'res/cache/{t}')):
+            for f in files:
+                full__path_file = join(root, f)
+                if os.path.getmtime(full__path_file) < cache_clean_time_point:
+                    try:
+                        os.remove(full__path_file)
+                    except Exception as error:
+                        log.error(f'Err while clean cache: {f} in "{t}"!')
+    log.info(f'Clean image cache success!')
+
+    for uid in up_list:
+        l = len(up_latest[uid])
+        if  l > 21:
+            try:
+                up_latest[uid] = up_latest[uid][(l-21):]
+                
+                with open(up_dir+uid+'.json','w') as f:
+                    json.dump({"history":up_latest[uid]}, f, ensure_ascii=False)
+            except:
+                log.error(f'Err while clean history: {uid}')
+    log.info('Clean uppers history success!')

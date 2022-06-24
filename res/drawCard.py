@@ -6,6 +6,7 @@ from PIL import Image,ImageFont,ImageDraw,ImageFilter
 
 from .getImg import get_ico, get_Image, round_mask
 
+curpath = dirname(__file__)
 # Init log system
 def initlog():
     path_log = join(dirname(__file__), "../log/")
@@ -16,9 +17,9 @@ def initlog():
         level="DEBUG",
         rotation="04:00",
         retention="7 days",
-        backtrace=True,
+        backtrace=False,
         enqueue=True,
-        diagnose=True,              # 调试，生产请改为False
+        diagnose=False,              # 调试，生产请改为False
         format='{time:MM-DD HH:mm:ss} [{level}]\t{module}.{function}({line}): {message}'
     )
 
@@ -45,12 +46,6 @@ class Card(object):
                 card_content = card_content.replace('\\\\','\\')
                 
             else:
-                # card_content = card_content.replace('\\/','/')
-                # card_content = card_content.replace('\\"','"')
-                # card_content = card_content.replace('"{','{')
-                # card_content = card_content.replace('}"','}')
-                # card_content = card_content.replace('\} ?\]"', '} ]')
-                # card_content = card_content.replace('"\[ ?\{', '[ {')
                 # 升级为正则替换
                 card_content = re.sub(r'\\+\/', '/', card_content)
                 card_content = re.sub(r'\\+\"', '"', card_content)
@@ -73,12 +68,31 @@ class Card(object):
 
     def check_black_words(self, blk, islucky):
         ret = False
-        txt = json.dumps(self.card, ensure_ascii=False)
+        txt = ""
+        # 根据不同的动态内容，提取特定的区块来过滤。
+        #txt = json.dumps(self.card, ensure_ascii=False) 
+        if self.dytype == 2:
+            txt = self.card["item"]["description"]    
+        elif self.dytype == 4 or self.dytype == 1:
+            txt = self.card["item"]["content"]
+        if self.dytype == 1:
+            if self.dyorigtype == 2:
+                txt += self.card["origin"]["item"]["description"]
+            elif self.dyorigtype == 4:
+                txt += self.card["origin"]["item"]["content"]
         for b in blk:
-            log.info(f'black-words: find {b} {txt.count(b)} times!')
-            if txt.count(b):
+            # if txt.count(b):
+            if b[0] == '\\':
+                c = re.findall(b[1:], txt)
+                c = len(c) if c else 0
+                log.info(f'black-words: find {b} {c} times!')
+            else:
+                c = txt.count(b)
+                log.info(f'black-words: find {b} {c} times!')
+            if c:
                 ret = True
                 log.info(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
+                break
         if islucky == True:
             if self.dytype == 1:
                 if "互动抽奖" in str(self.card["origin"]):
@@ -120,7 +134,7 @@ class Card(object):
                 log.debug('This is an account of BigVIP(Year)')
             else:
                 face_avatar = None
-                log_avatar_type='一般男性'
+                log_avatar_type='普通人'
                 log.debug('This is a normal persion.')
         faceimg = box.face(face, pendant=face_pendant, avatar_subscript=face_avatar)
         log.info(f'FaceBox: 头像框={bool(face_pendant)}, 头像角标={log_avatar_type}; BoxSize={faceimg.size}', )
@@ -134,15 +148,18 @@ class Card(object):
 
         #制作一键三连   == bottom ==
         sharenum   = self.latest["desc"]["repost"]
-        if self.dytype in [1,2,4]:
+        if self.dytype in [1,2,4]:  # 转发、图文、纯文字  从desc里获得评论
             commentnum = self.latest["desc"]["comment"]
             log.debug(f'Get comment number={commentnum} form dynamic.desc.comment because Type={self.dytype}')
-        elif self.dytype == 8:
+        elif self.dytype == 8:      # 视频，card.stat获得评论
             commentnum = self.card["stat"]["reply"]
             log.debug(f'Get comment number={commentnum} form dynamic.card.stat.comment because Type={self.dytype}')
-        elif self.dytype == 64:
+        elif self.dytype == 64:     # 专栏，从card.stats获得评论
             commentnum = self.card["stats"]["reply"]
             log.debug(f'Get comment number={commentnum} form dynamic.card.stat.comment because Type={self.dytype}')
+        elif self.dytype == 256:    # 音频，从card.replyCnt获得评论
+            commentnum = self.card["replyCnt"]
+            log.debug(f'Get comment number={commentnum} form dynamic.card.replyCnt because Type={self.dytype}')
         else:
             commentnum = 114514
             log.debug('Get comment num fail! Set commentnum = 114514')
@@ -173,7 +190,10 @@ class Card(object):
         elif self.dytype == 64: #专栏
             bodyimg = self.drawArticle(self.card, box)
             ret_txt="专栏文章"
-        elif self.dytype == 256: #番剧
+        elif self.dytype == 256: #音频
+            bodyimg = self.drawAudio(self.card, box)
+            ret_txt="音频"
+        elif self.dytype == 512: #番剧
             bodyimg = self.drawBangumi(self.card, box)
             ret_txt="番剧"
         elif self.dytype == 2048:    #H5
@@ -300,7 +320,7 @@ class Card(object):
         imgs = []
         img_urls = content["image_urls"]
         for url in img_urls:
-            imgs.append(get_Image(Type="image", url=url))
+            imgs.append(get_Image(Type="article_cover", url=url))
         title = content["title"]
         summary= content["summary"]
         template = content["template_id"]
@@ -308,9 +328,19 @@ class Card(object):
         img = box.article(title, summary, imgs, template, is_rep)
         return img
 
-        
+    # Type=256  音频        Audio
+    def drawAudio(self, content, box, is_rep=False):
+        cover_url = content["cover"]
+        cover = get_Image(Type="cover", url=cover_url)
+        desc = content["intro"]
+        title = content["title"]
+        subtype = content["typeInfo"]
 
-    # Type=256  番剧        Bangumi         （使用b站官号的一条动态来渲染）
+        img = box.audio(title, desc, cover, subtype, is_rep)
+        return img
+
+
+    # Type=512  番剧        Bangumi         （使用b站官号的一条动态来渲染）
     def drawBangumi(self, content, box, is_rep=False):
         pass
 
@@ -893,13 +923,61 @@ class Box(object):
         bgdraw.rounded_rectangle(((0,0),(bg.size[0]-1,bg.size[1]-1)), 
                     radius=4, fill=(0,0,0,0), outline=(color_info),width=1)
         bg.paste(img, (1,1), mask=img_rounded(img.size, r=4))
-
         return bg
+
+
+    # ====================box.audio====================
+    # 番剧发布和分享的卡片，未确认
+    # return 图片对象，高
+    def audio(self, title: str, desc:str, cover, subtype:str, is_reposted=False):
+        descbox = self.text(desc)
+
+        width_of_card = self.width - 88 - 18 - 10
+        audiobox = Image.new('RGBA', (width_of_card, 82), 'white')
+        log.info(f'Size of audio box=({width_of_card}, 80)')
+        fontbig = ImageFont.truetype(self.msyh, 14)
+        fontsmall = ImageFont.truetype(self.msyh, 12)
+        draw = ImageDraw.Draw(audiobox)
+
+        draw.rounded_rectangle(((0,0),(width_of_card-1, 81)), radius=4, fill='white', outline=(150, 150, 150,255),width=1)
+        log.debug(f'rounded_rectangle size=({width_of_card},82)')
+        audiobox.paste(cover.resize((80,80), Image.ANTIALIAS), (1,1), mask = img_rounded((80,80), 4))
+        log.debug(f'Cover size={cover.size}, resize to 80x80')
+        point = (80+15, 16)
+        # 绘制标题文字
+        while(1):
+            ch = title[0]
+            draw.text(point, ch, fill=(34, 34, 34, 255), font=fontbig)
+            if len(title) == 1:       # 文字展示结束
+                break
+            else:
+                ch1 = title[1]
+                gap = chgap(ch, ch1, 14/2)
+                point = (point[0]+gap, point[1])
+                if point[0] + 36 + 16> width_of_card:       # 文字过长，需要截断并省略
+                    log.info('Title of audio is too long, cut!')
+                    draw.text(point, '...', fill=(34, 34, 34, 255), font=fontbig)
+                    break
+            title=title[1:]
+        # 绘制音频分区
+        point=(80+15, 16+20+8)
+        draw.text(point, subtype, (153, 162, 170, 255), fontsmall)
+        log.debug(f'audio box: 文字部分绘制完成')
+        
+        h = descbox.size[1] + 10 + audiobox.size[1]
+        w = max(descbox.size[0], audiobox.size[0])
+        log.info(f'Size of audio card = ({w}, {h})')
+        img = Image.new('RGBA', (w,h), 'white')
+        img.paste(descbox,(0,0))
+        img.paste(audiobox, (0, descbox.size[1]+10))
+        return img
+        
+
 
     # ====================box.bangumi====================
     # 番剧发布和分享的卡片，未确认
     # return 图片对象，高
-    def bangumi(a, is_reposted=False):
+    def bangumi(self, a, is_reposted=False):
         pass
 
     # ====================box.h5====================
