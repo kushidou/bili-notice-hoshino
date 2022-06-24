@@ -263,6 +263,9 @@ class Card(object):
             img_ori = self.drawVideo(content["origin"], box, is_rep=True)
         elif oritype == 64: # 转发专栏文章
             img_ori = self.drawArticle(content["origin"], box, is_rep=True)
+        elif oritype == 256:# 转发音频
+            img_ori = self.drawAudio(content["origin"], box, is_rep=True)
+        
 
         img = box.repost(orface, orname, img_now, img_ori)
         return img
@@ -933,14 +936,12 @@ class Box(object):
         descbox = self.text(desc)
 
         width_of_card = self.width - 88 - 18 - 10
-        audiobox = Image.new('RGBA', (width_of_card, 82), 'white')
-        log.info(f'Size of audio box=({width_of_card}, 80)')
+        audiobox = Image.new('RGBA', (width_of_card, 82), (0,0,0,0))
         fontbig = ImageFont.truetype(self.msyh, 14)
         fontsmall = ImageFont.truetype(self.msyh, 12)
         draw = ImageDraw.Draw(audiobox)
 
         draw.rounded_rectangle(((0,0),(width_of_card-1, 81)), radius=4, fill='white', outline=(150, 150, 150,255),width=1)
-        log.debug(f'rounded_rectangle size=({width_of_card},82)')
         audiobox.paste(cover.resize((80,80), Image.ANTIALIAS), (1,1), mask = img_rounded((80,80), 4))
         log.debug(f'Cover size={cover.size}, resize to 80x80')
         point = (80+15, 16)
@@ -967,7 +968,7 @@ class Box(object):
         h = descbox.size[1] + 10 + audiobox.size[1]
         w = max(descbox.size[0], audiobox.size[0])
         log.info(f'Size of audio card = ({w}, {h})')
-        img = Image.new('RGBA', (w,h), 'white')
+        img = Image.new('RGBA', (w,h), (0,0,0,0))
         img.paste(descbox,(0,0))
         img.paste(audiobox, (0, descbox.size[1]+10))
         return img
