@@ -127,25 +127,30 @@ async def get_update():
             res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
         except:
             log.info('Err: Get dynamic list failed.')
+            return -1, []
         dylist = json.loads(res.text)
-        dynamic = drawCard.Card(dylist)
 
-        if not dynamic.nickname == this_up["uname"]:
-            up_group_info[up_list[number]]["uname"] = dynamic.nickname
-            with open(join(up_dir,'list.json'), 'w') as f:
-                json.dump(up_group_info, f, ensure_ascii=False)
+        for card in dylist["data"]["cards"]:
+            if int(card["desc"]["dynamic_id_str"]) in up_latest[up_list[number]]:
+                break
+            # 解析动态json
+            dynamic = drawCard.Card(card)
 
-        
-        if dynamic.dyid not in up_latest[up_list[number]]:  # 查到新的动态
+            # 更新UP主的昵称
+            if not dynamic.nickname == this_up["uname"]:
+                up_group_info[up_list[number]]["uname"] = dynamic.nickname
+                with open(join(up_dir,'list.json'), 'w') as f:
+                    json.dump(up_group_info, f, ensure_ascii=False)
+            
             log.info('========== New Dynamic Card =========')
             log.info(f"UP={dynamic.nickname}({dynamic.uid}), Dynamic_id={dynamic.dyid}, Type={int(dynamic.dytype)}, ori_type={int(dynamic.dyorigtype)}")
             
             if not dynamic.check_black_words(this_up["ad_keys"], this_up["islucky"]):  # 如果触发过滤关键词，则忽视该动态
                 if dynamic.is_realtime(30):             # 太久的动态不予发送
-                # if True:
+                    # 只解析支持的类型
                     if dynamic.dytype in available_type or (dynamic.dytype==1 and dynamic.dyorigtype in available_type):
-                        drawBox = drawCard.Box(650, 1200)
-                        dyimg, dytype = dynamic.draw(drawBox)
+                        drawBox = drawCard.Box(650, 1200)       # 创建卡片图片的对象
+                        dyimg, dytype = dynamic.draw(drawBox)   # 绘制动态
                 
                         msg = f"{dynamic.nickname} {dytype}, 点击链接直达：\n https://t.bilibili.com/{dynamic.dyidstr}  \n[CQ:image,file={dyimg}]"
                         group_list = this_up["group"]
@@ -162,19 +167,18 @@ async def get_update():
                             "group":    group_list
                         }
                         dynamic_list.append(dyinfo)
-                    
                 else:
-                    log.info(f"This dynamic({dynamic.dyid}) is too old: {(int(time.time()) - dynamic.dytime)/60} minutes ago")
+                    log.info(f"This dynamic({dynamic.dyid}) is too old: {(int((time.time() - dynamic.dytime))/60)} minutes ago\n")
                     fai -=1
             else:
                 log.info(f"({dynamic.dyid})触发过滤词，或者是转发抽奖动态。\n")
                 fai -= 1 
-    number = 0 if number+1>=len(up_list) else number+1
 
-    up_latest[uid_str].append(dynamic.dyid)         # 完成后把动态加入肯德基豪华午餐
-    with open(up_dir+uid_str+'.json','w') as f:
+            up_latest[uid_str].append(dynamic.dyid)         # (无论成功失败)完成后把动态加入肯德基豪华午餐
+    with open(up_dir+uid_str+'.json','w') as f:     # 更新记录文件
             json.dump({"history":up_latest[uid_str]}, f, ensure_ascii=False)
     rst = fai if suc==0 else suc
+    number = 0 if number+1>=len(up_list) else number+1
     return rst, dynamic_list
 
 
@@ -398,6 +402,109 @@ def shell(group, para, right):
     return True, msg
 
 
+def get_follow(group:int, level:int=0):
+    """获得该群关注的UP的昵称和uid，调整level可以获得完整信息
+
+    Args:
+        group (int):    查询的群号
+        level (int):    显示信息等级，具体为
+                                level 0: nickname(uid)
+                                level 2: nickname(uid)-islucky-ad_keys
+                                level 9: nickname(uid)-islucky-ad_keys-groups
+
+    Returns:
+        rst (bool):     执行结果。出错、未关注任何人返回false
+        info (str):     关注的信息。或者错误信息。
+    """
+    count = 0
+    txt = "本群已关注：\r\n"
+    for uid in up_group_info.keys():
+        if group in up_group_info[uid]["group"]:
+            txt += f'{up_group_info[uid]["uname"]}({uid})'
+            if level >= 2:
+                txt += f'\r\n  是否过滤转发抽奖: {up_group_info[uid]["islucky"]}'
+                txt += f'\r\n  过滤关键词有: {str(up_group_info[uid]["ad_keys"])}'
+            if level >= 9:
+                txt += f'\r\n  关注的群号有: {str(up_group_info[uid]["group"])}'
+            txt += '\r\n'
+            count +=1
+
+    rst = True if count else False
+    info = txt+f'共{count}位UP主' if count else "本群未关注任何UP主！"
+    return rst, info
+
+
+def get_follow_byuid(group:str, level:int=0):
+    """获得该群关注的UP的昵称和uid，调整level可以获得完整信息
+
+    Args:
+        group (str):    str输入all，将会显示所有的up主，包含watch=false的
+        level (int):    显示信息等级，具体为
+                                level 0: nickname(uid)
+                                level 2: nickname(uid)-islucky-ad_keys
+                                level 9: nickname(uid)-islucky-ad_keys-groups
+
+    Returns:
+        rst (bool):     执行结果。出错、未关注任何人返回false
+        info (str):     关注的信息。或者错误信息。
+    """
+    if not group == "all":
+        return False, "函数参数错误，仅接受'all'"
+    count = 0
+    txt = "本bot已关注：\r\n"
+    for uid in up_group_info.keys():
+        txt += f'{up_group_info[uid]["uname"]}({uid})'
+        if level >= 9:
+            txt += f'\r\n  是否过滤转发抽奖: {up_group_info[uid]["islucky"]}'
+            txt += f'\r\n  过滤关键词有: {str(up_group_info[uid]["ad_keys"])}'
+        if level >= 2:
+            txt += f'\r\n  群号: {str(up_group_info[uid]["group"])}'
+        txt += '\r\n'
+        count += 1
+    rst = True if count else False
+    info = txt+f'共{count}位UP主' if count else "您还没有关注任何UP主。"
+    return rst, info
+    
+def get_follow_bygrp(group:str, level:int=0):
+    """获得该群关注的UP的昵称和uid，调整level可以获得完整信息
+
+    Args:
+        group (str):    str输入all，将会显示所有的up主，包含watch=false的
+        level (int):    显示信息等级，具体为
+                                level 0: nickname(uid)
+                                level 2: nickname(uid)-islucky-ad_keys
+                                level 9: nickname(uid)-islucky-ad_keys-groups
+
+    Returns:
+        rst (bool):     执行结果。出错、未关注任何人返回false
+        info (str):     关注的信息。或者错误信息。
+    """
+    count = 0
+    txt = "群关注列表汇总：\r\n"
+    lists={}
+    # 遍历up主，把uid分类到群信息
+    for uid in up_group_info.keys():
+        for grp in up_group_info[uid]["group"]:
+            if grp in lists.keys():
+                lists[grp].append(uid)
+            else:
+                lists[grp]=[uid]
+        count += 1
+    # 按群生成文字消息
+    for g in lists:
+        txt += f'群{g}已关注:\r\n'
+        for u in lists[g]:
+            txt+=f'  {up_group_info[str(u)]["uname"]}({u})\r\n'
+        txt += '\r\n'
+
+    rst = True if count else False
+    info = txt[0:-2] if count else "您还没有关注任何UP主。"
+    return rst, info
+
+
+
+
+#====================附加功能，外部请勿调用======================
 def clean_cache():
     global up_latest, up_dir
     cache_clean_time_point = time.time() - 7*3600*24
@@ -411,16 +518,16 @@ def clean_cache():
                         os.remove(full__path_file)
                     except Exception as error:
                         log.error(f'Err while clean cache: {f} in "{t}"!')
-    log.info(f'Clean image cache success!')
+    log.info(f'Clean image cache finish!')
 
     for uid in up_list:
         l = len(up_latest[uid])
         if  l > 21:
             try:
-                up_latest[uid] = up_latest[uid][(l-21):]
+                up_latest[uid] = up_latest[uid][(l-21):]        # 清理文件的同时清理内存
                 
                 with open(up_dir+uid+'.json','w') as f:
                     json.dump({"history":up_latest[uid]}, f, ensure_ascii=False)
             except:
                 log.error(f'Err while clean history: {uid}')
-    log.info('Clean uppers history success!')
+    log.info('Clean uppers history finish!')

@@ -43,7 +43,7 @@ async def bili_dy_from_id(bot,ev):
     with open(curpath+'/example_json_while_testing.json', 'w') as f:
         json.dump(dydetail, f, ensure_ascii=False)
 
-    dylist = {"data":{"cards":[dydetail['data']['card']]}}
+    dylist = dydetail['data']['card']
 
     dynamic = drawCard.Card(dylist)
     drawBox = drawCard.Box(650, 1200)
@@ -75,7 +75,8 @@ async def bili_dy_from_uid(bot,ev):
     dylist = json.loads(res.text)
     with open(curpath+'/example_json_while_testing.json', 'w') as f:
         json.dump(dylist["data"]["cards"][0], f, ensure_ascii=False)
-    dynamic = drawCard.Card(dylist) 
+    card = dylist["data"]["cards"][0]
+    dynamic = drawCard.Card(card) 
     drawBox = drawCard.Box(650, 1200)
 
     dyimg, dytype = dynamic.draw(drawBox)

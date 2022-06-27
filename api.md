@@ -24,25 +24,25 @@ rst, dylist = await dymgr.get_update()
 
 该功能无需输入参数。
 
-返回值`rst`是可发送的条数， `rst=0`表示无更新。 `rst >0`表示可更新的数量。 `rst <0(负数)`表示某up主更新了多条，但都超时，或被过滤器屏蔽不适合发送。如果up主发布了n条新动态，但是有m条符合条件可以发送，(n-m)条被过滤，那么`rst = m`。
+返回值`rst`是可发送的条数， `rst=0`表示无更新。 `rst >0`表示可更新的数量。 `rst <0(负数)`表示某up主更新了多条，但都超时，或被过滤器屏蔽不适合发送，或发生错误更新失败。如果up主发布了n条新动态，但是有m条符合条件可以发送，(n-m)条被过滤，那么`rst = m`。
 
 返回值`dylist`是列表，包含0、1或多个动态的信息。列表内各项目均为列表组合的字典(dict)，格式为：
 
 ```python
-dylist = {
-    [
-    "nickname":   str,     (昵称，字符串)
-    "uid"：       int,     (uid，数字)
-    "type":       int/str, (动态类型，返回id或者字符串，由配置文件决定)
-    "subtype":    int,     (动态子类型。如果非转发，则subtype=0，不会留空)
-    "time":       int/str, (时间戳或字符串时间，配置文件决定)
-    "pic":        str,     (base64编码的图片)
-    "link":       str,     (动态的链接)
-    "sublink":    str,     (如果是视频文章等，这里写他们的链接。普通动态与link相同)
-    "group":      list     (需要发给的群,[num1, num2, ...])
-    ],
-    [...]
-}
+dylist = [
+    {
+        "nickname":   str,     (昵称，字符串)
+        "uid"：       int,     (uid，数字)
+        "type":       int/str, (动态类型，返回id或者字符串，由配置文件决定)
+        "subtype":    int,     (动态子类型。如果非转发，则subtype=0，不会留空)
+        "time":       int/str, (时间戳或字符串时间，配置文件决定)
+        "pic":        str,     (base64编码的图片)
+        "link":       str,     (动态的链接)
+        "sublink":    str,     (如果是视频文章等，这里写他们的链接。普通动态与link相同)
+        "group":      list     (需要发给的群,[num1, num2, ...])
+    },
+    {...}
+]
 ```
 
 其中：
@@ -138,4 +138,40 @@ rst, res = dymgr.shell(group_id, para, right)
 
 返回`rst`是指令是否成功执行，权限不符、指令错误的时候返回`False`。`res`则是指令执行的结果。
 
+### (5)本群关注功能
 
+```python
+rst, info = dymgr.get_follow(group_id, level)
+# 输入: group_id(int), level(int)
+# 返回: rst(bool), info(str)
+
+rst, info = dymgr.get_follow_byuid(group_id, level)
+# 输入: group_id(str), level(int)
+# 返回: rst(bool), info(str)
+
+rst, info = dymgr.get_follow_bygrp(group_id, level)
+# 输入: group_id(str), level(int)
+# 返回: rst(bool), info(str)
+```
+
+提供查询某个群或者所有群的关注信息。
+
+`level`目前支持三个等级（两个函数相同），在于level显示信息的详细等级，现在支持三个等级，默认是0，将来会逐渐完善内容。具体如下：
+
+```
+本群已关注：
+嘉然今天吃什么(672328094)       // level 0 到此截止
+  是否过滤转发抽奖: false
+  过滤关键词有: [ "恰饭","广告","运营代转"]         //level 2 到此截止
+  关注ta的群号有: [6557420xx, 7041446xx]           //level 9 到此截止
+碧蓝航线(233114659)             //新的level 0
+  (略)
+```
+
+当结果正确生成的时候，rst返回`true`，info内容就是上面的格式。出现错误，那么返回的就是`false`，info内容是错误信息，暂时只有“未关注任何UP主”会返回错误。
+
+> ps.
+>
+> `get_follow_bygrp/byuid`的group_id只是为了统一形式，传入`"all"`即可，没有实际意义。该函数返回的内容可能比较长，当心长消息发送被风控。
+>
+> 计划`level>0`时不直接返回txt内容，而是返回一个列表，包含所有关键信息，由协议端按需求，切片发送也好，组织成虚拟转发消息也好，优化发送的格式与提高成功率。

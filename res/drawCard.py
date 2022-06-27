@@ -32,7 +32,8 @@ class Card(object):
     # Card.dyid, .dytime, .dytype, .nickname
     def __init__(self, dylist: dict):
         # 初始化时，解析部分基础信息，然后判断Type等
-        self.latest = dylist["data"]["cards"][0]
+        # self.latest = dylist["data"]["cards"][0]
+        self.latest = dylist
         self.dytype = self.latest["desc"]["type"]
         self.dyorigtype=self.latest["desc"]["orig_type"]
         self.dyid   = self.latest["desc"]["dynamic_id"]

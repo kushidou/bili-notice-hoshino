@@ -92,6 +92,23 @@ async def bili_ctl(bot,ev):
     rst, res = dymgr.shell(ev.group_id, para, right)
     msg = res
     await bot.send(ev,msg)
+
+@sv.on_fullmatch(["本群关注","看看成分","关注列表"], only_to_me=True)
+async def follow_list_group(bot,ev):
+    rst, info = dymgr.get_follow(ev.group_id, level=0)
+    await bot.send(ev, info)
+
+@sv.on_fullmatch(["所有关注", "bili-list"])
+async def follow_list_byuid(bot, ev):
+    if await check_rights(ev, level=1):
+        rst, info = dymgr.get_follow_byuid("all", level=0)
+        await bot.send(ev, info)
+
+@sv.on_fullmatch(["所有群关注", "bili-list-group"])
+async def follow_list_byuid(bot, ev):
+    if await check_rights(ev, level=1):
+        rst, info = dymgr.get_follow_bygrp("all", level=0)
+        await bot.send(ev, info)
     
 async def check_rights(ev, level=0):
     # 返回权限是否通过。

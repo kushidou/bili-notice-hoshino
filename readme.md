@@ -66,7 +66,15 @@
 
 ![取关](./res/pic_markdown/dynamic_unfollow.png)
 
-### 3-debug
+### 3-查看已关注
+
+群内发送 `看看成分`、`本群关注` 并@机器人，即可获得当前群的关注列表。
+
+![关注列表](./res/pic_markdown/follow_list.png)
+
+机器人管理员发送`所有关注`、`所有群关注`可以获得所有所有群关注列表的详细信息
+
+### 4-debug
 
 由于插件刚刚推出beta版，不仅功能没做完，还有很多隐形bug，因此 `bili_notice_test.py` 提供了一个debug的方法，该方法只能机器人的管理员使用。
 
@@ -77,7 +85,7 @@
     <img src="./res/pic_markdown/debug-测试up.png" width="300"/>
 </figure>
 
-### 4-机器人管理指令
+### 5-机器人管理指令
 
 支持机器人管理员调整bili动态监视器的全局配置，比如是否过滤转发抽奖、是否进行关键词屏蔽等。比如：
 
