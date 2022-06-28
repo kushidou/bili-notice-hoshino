@@ -43,6 +43,7 @@ conf = cfg.ConfigParser()
 conf.read(join(curpath, 'config.ini'), encoding='utf-8')
 
 # 从文件中读取up主配置列表和up主发送动态的历史
+up_group_info, up_list={}, []
 if exists(up_dir + 'list.json'):
     with open(join(up_dir,'list.json'), 'r') as f:
         up_group_info = json.load(f)
@@ -87,10 +88,13 @@ async def get_update():
 
         
     """
-    global number,up_latest, up_list, cache_clean_date
+    global number,up_latest, up_list, cache_clean_date, up_group_info
     msg,dyimg,dytype = None,None,None
     rst, suc, fai=0,0,0
     dynamic_list=[]
+
+    if len(up_group_info) == 0:
+        return 0, []
 
     # 借用轮询来清理垃圾
     cache_clean_today = datetime.date.today().day
@@ -128,7 +132,11 @@ async def get_update():
         except:
             log.info('Err: Get dynamic list failed.')
             return -1, []
+        res.encoding = 'utf-8'
         dylist = json.loads(res.text)
+
+        if not dylist["code"] == 0:
+            return -1, []
 
         for card in dylist["data"]["cards"]:
             if int(card["desc"]["dynamic_id_str"]) in up_latest[up_list[number]]:
@@ -138,6 +146,7 @@ async def get_update():
 
             # 更新UP主的昵称
             if not dynamic.nickname == this_up["uname"]:
+                log.info(f'更新UP主名称:  uid={this_up["uid"]}, nickname [{this_up["uname"]}] ==> [{dynamic.nickname}]')
                 up_group_info[up_list[number]]["uname"] = dynamic.nickname
                 with open(join(up_dir,'list.json'), 'w') as f:
                     json.dump(up_group_info, f, ensure_ascii=False)

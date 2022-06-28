@@ -34,9 +34,9 @@
 
 `pip install -r ./requirements.txt `
 
-3. 将uppers_example重命名为 uppers
+3. 将uppers_example重命名为 uppers   (uppers目录下 `list.json`为空时，至少要保证里面是`{}`)
 
-4. 在`config/__bot__.py`的`MODULES_ON`中，添加`"bili_notice_hoshino"`，然后重启HoshinoBot。
+4. 在`config/__bot__.py`的`MODULES_ON`中，添加`"bili-notice-hoshino"`，然后重启HoshinoBot。
 
 <details>
   <summary>插件内文件说明</summary>
