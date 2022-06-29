@@ -28,15 +28,31 @@
 
 1. 进入到Hoshino的modules目录，克隆项目
 
-`git clone https://github.com/kushidou/bili-notice-hoshino`
+`git clone https://github.com/kushidou/bili-notice-hoshino.git`
 
 2. 安装几个python包（也可以手动pip安装）
 
 `pip install -r ./requirements.txt `
 
+> ***PS.***
+> 
+> 在Windows平台使用时，通常会报告`no library called "cairo" was found` 的错误，需要按照 [#8]() 的方案处理一下。
+>
+> 参考连接：
+>
+> [win10 安装 cairosvg](https://www.jianshu.com/p/5f566c26334f)
+>
+> [GTK-for-Windows](https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer)
+
 3. 将uppers_example重命名为 uppers   (uppers目录下 `list.json`为空时，至少要保证里面是`{}`)
 
+> ***PS.***
+> 由于插件的编写环境为Linux，当运行在Windows平台，自带的配置文件可能出现编码兼容性问题。可以创建一个新的文件夹并命名`uppers`，然后创建一个新的`list.json`文件，内容为空的json结构: `{}`
+
+
 4. 在`config/__bot__.py`的`MODULES_ON`中，添加`"bili-notice-hoshino"`，然后重启HoshinoBot。
+
+5. enjoy
 
 <details>
   <summary>插件内文件说明</summary>
