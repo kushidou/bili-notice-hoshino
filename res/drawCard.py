@@ -250,12 +250,17 @@ class Card(object):
         # 解析出现在动态内容、原始动态信息
         # 先按类型绘制原始动态,贴身灰色背景，然后绘制当前动态（纯文字），拼接，最后返回完整图片
         log.info('Type = Repost')
-        orname =content["origin_user"]["info"]["uname"]
-        orface = get_Image(Type = "face", url=content["origin_user"]["info"]["face"])
+        oritype = self.latest["desc"]["orig_type"]
+        if oritype in [2,4,8,64,256]:
+            orname =content["origin_user"]["info"]["uname"]
+            orface = get_Image(Type = "face", url=content["origin_user"]["info"]["face"])
+        elif oritype in [512]:
+            orname = content["origin"]["apiSeasonInfo"]["title"]
+            orface = get_Image(Type="cover", url=content["origin"]["apiSeasonInfo"]["cover"] )
 
         img_now = box.text(content["item"]["content"], self.extra)
 
-        oritype = self.latest["desc"]["orig_type"]
+        
         if oritype == 2:    # 转发带图动态
             img_ori = self.drawImage(content["origin"], box, is_rep=True)
         elif oritype == 4:  # 转发别人的动态
@@ -266,6 +271,8 @@ class Card(object):
             img_ori = self.drawArticle(content["origin"], box, is_rep=True)
         elif oritype == 256:# 转发音频
             img_ori = self.drawAudio(content["origin"], box, is_rep=True)
+        elif oritype == 512: # 转发番剧剧集
+            img_ori = self.drawBangumi(content["origin"], box, is_rep=True)
         
 
         img = box.repost(orface, orname, img_now, img_ori)
@@ -344,9 +351,17 @@ class Card(object):
         return img
 
 
-    # Type=512  番剧        Bangumi         （使用b站官号的一条动态来渲染）
+    # Type=512  番剧        Bangumi         （貌似只出现在转发里）
     def drawBangumi(self, content, box, is_rep=False):
-        pass
+        sptitle = content["apiSeasonInfo"]["title"]
+        spcover = get_Image(Type="cover", url=content["apiSeasonInfo"]["cover"])
+        eptitle = content["index_title"]
+        epcover = get_Image(Type="cover", url=content["cover"])
+        epplay  = content["play_count"]
+        epdanmu = content["bullet_count"]
+
+        img = box.bangumi(sptitle, spcover, eptitle, epcover, epplay, epdanmu, is_rep)
+        return img
 
     # Type=2048 H5活动      H5Event
     def drawH5Event(self, content, box, is_rep=False):
@@ -979,8 +994,66 @@ class Box(object):
     # ====================box.bangumi====================
     # 番剧发布和分享的卡片，未确认
     # return 图片对象，高
-    def bangumi(self, a, is_reposted=False):
-        pass
+    def bangumi(self, sptitle, spcover, eptitle, epcover, epplay, epdanmu, is_reposted=False):
+        card_point = 0
+
+        # 视频小卡片，封面203x127，贴合小边缩放、裁切；标题最多两行，简介最多两行，
+        # 创建基础卡片
+        vimg = Image.new('RGBA', (self.width-88 - 24, 129), (0,0,0,0))
+        draw = ImageDraw.Draw(vimg)
+        fontbig = ImageFont.truetype(self.msyh, 14)
+        fontsmall=ImageFont.truetype(self.msyh, 12)
+        color_title= (33,33,33,255)
+        color_info = (153, 153, 153, 255)
+        draw.rounded_rectangle(((0,0),(vimg.size[0]-1,vimg.size[1]-1)), radius=4, fill=(0,0,0,0), outline=(color_info),width=1)
+
+        # 放置封面
+        s =epcover.size
+        if s[0]/s[1] == (203/127):
+            epcover_stand = epcover.resize((203,127),Image.ANTIALIAS)
+        elif s[0]/s[1] > (203/127):
+            s0 = int(s[1] * 203/127 /2)
+            epcover = epcover.crop((s[0]/2-s0,0,s[0]/2+s0,s[1]-1))
+            epcover_stand = epcover.resize((203,127),Image.ANTIALIAS)
+        else:
+            s1 = int(s[0] * 127/203 /2)
+            epcover = epcover.crop((0,s[1]/2-s1 ,s[0]-1,s[1]/2+s1 ))
+            epcover_stand = epcover.resize((203,127), Image.ANTIALIAS)
+        print(f'size of epcover={s}, size of epcover_stand={epcover_stand.size}')
+        mask=Image.new('RGBA', (203,127), (0,0,0,0))    
+        maskdr = ImageDraw.Draw(mask)
+        maskdr.rounded_rectangle((0,0,202,126), radius=4, fill=(0,0,0,255))
+        # print(f'size of mask={mask.size}')
+        vimg.paste(epcover_stand, (1,1),mask)
+        # 写标题
+        offsetx, offsety = 203+12, 9+2
+        maxx = vimg.size[0]-16
+        point,line = offsetx,0
+        for n,ch in enumerate(eptitle):
+            chnxt = eptitle[n+1] if n+1<len(eptitle) else None
+            draw.text((point, offsety + line*19), ch, fill=color_title, font=fontbig)
+            if line>0 and point+22 > maxx and len(eptitle)-n>1:
+                draw.text((point, offsety+line*19), '...', fill=color_title, font=fontbig)
+                break
+            if point + 16 > maxx:
+                point = offsetx
+                line = line+1
+                continue
+            point = point + chgap(ch, chnxt, 8)
+
+        # 写播放量和弹幕量
+        offsetx, offsety= 203+12, vimg.size[1]-18
+        ico = get_ico('play_sec',em=16)
+        vimg.paste(ico, (offsetx, offsety), ico)
+        draw.text((offsetx+20, offsety-1), num_human(epplay), color_info, fontsmall)
+        offsetx = offsetx+20+50
+        ico = get_ico('danmuku',em=16)
+        vimg.paste(ico, (offsetx, offsety), ico)
+        draw.text((offsetx+20, offsety-1), num_human(epdanmu), color_info, fontsmall)        
+        # 图片拼接
+        img = Image.new('RGBA', (self.width-88 - 24, card_point+129), (0,0,0,0))
+        img.paste(vimg, (0, card_point), vimg)
+        return img
 
     # ====================box.h5====================
     # h5活动页卡片，未确认

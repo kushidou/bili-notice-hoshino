@@ -1,7 +1,7 @@
 import json, requests, time, datetime
 import configparser as cfg
 import os
-from os.path import dirname, join, exists
+from os.path import dirname, join, exists, getmtime
 from .res import drawCard
 from loguru import logger as log
 
@@ -45,16 +45,16 @@ conf.read(join(curpath, 'config.ini'), encoding='utf-8')
 # 从文件中读取up主配置列表和up主发送动态的历史
 up_group_info, up_list={}, []
 if exists(up_dir + 'list.json'):
-    with open(join(up_dir,'list.json'), 'r') as f:
+    with open(join(up_dir,'list.json'), 'r', encoding='UTF-8') as f:
         up_group_info = json.load(f)
 
     for uid in list(up_group_info.keys()):
         if exists(up_dir+uid+'.json'):
-            with open(up_dir+uid+'.json','r') as f:
+            with open(up_dir+uid+'.json','r', encoding='UTF-8') as f:
                 up_latest[uid] = json.load(f)["history"]
         else:
             up_latest[uid]=[]
-            with open(up_dir+uid+'.json','w') as f:
+            with open(up_dir+uid+'.json','w', encoding='UTF-8') as f:
                 json.dump({"history":[]}, f, ensure_ascii=False)
     up_list = list(up_group_info.keys())
 
@@ -108,7 +108,7 @@ async def get_update():
         if this_up["watch"] == True:                # 跳过不监控的up
             if len(this_up["group"]) == 0:          # 如果没有群关注up，就更改状态为不监控
                 up_group_info[up_list[number]]["watch"]=False
-                with open(join(up_dir,'list.json'), 'w') as f:
+                with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:
                     json.dump(up_group_info, f, ensure_ascii=False)
                 continue            # 状态更新完成，下一个
             else:
@@ -148,7 +148,7 @@ async def get_update():
             if not dynamic.nickname == this_up["uname"]:
                 log.info(f'更新UP主名称:  uid={this_up["uid"]}, nickname [{this_up["uname"]}] ==> [{dynamic.nickname}]')
                 up_group_info[up_list[number]]["uname"] = dynamic.nickname
-                with open(join(up_dir,'list.json'), 'w') as f:
+                with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:
                     json.dump(up_group_info, f, ensure_ascii=False)
             
             log.info('========== New Dynamic Card =========')
@@ -184,7 +184,7 @@ async def get_update():
                 fai -= 1 
 
             up_latest[uid_str].append(dynamic.dyid)         # (无论成功失败)完成后把动态加入肯德基豪华午餐
-    with open(up_dir+uid_str+'.json','w') as f:     # 更新记录文件
+    with open(up_dir+uid_str+'.json','w', encoding='UTF-8') as f:     # 更新记录文件
             json.dump({"history":up_latest[uid_str]}, f, ensure_ascii=False)
     rst = fai if suc==0 else suc
     number = 0 if number+1>=len(up_list) else number+1
@@ -239,10 +239,10 @@ def follow(uid, group):
 
                 up_group_info[uid]=upinfo
                 try:
-                    with open(join(up_dir,'list.json'), 'w') as f:      # 更新UP主列表
+                    with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
                         json.dump(up_group_info, f, ensure_ascii=False)  
 
-                    with open(up_dir+uid+'.json','w') as f:             # 给up主创建和添加动态历史列表
+                    with open(up_dir+uid+'.json','w', encoding='UTF-8') as f:             # 给up主创建和添加动态历史列表
                         json.dump({"history":[]}, f, ensure_ascii=False)
                         print(f'add {upinfo["uname"]}({uid}) history json to {up_dir+uid}.json')
 
@@ -271,7 +271,7 @@ def follow(uid, group):
         else:    
             up_group_info[uid]["group"].append(group)
             try:
-                with open(join(up_dir,'list.json'), 'w') as f:
+                with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:
                     json.dump(up_group_info, f, ensure_ascii=False)
             except:
                 log.info('关注失败,无法修改list文件或无法创建用户记录文件')
@@ -310,7 +310,7 @@ def unfollow(uid, group):
             else:
                 try:
                     up_group_info[uid]["group"].remove(group)
-                    with open(join(up_dir,'list.json'), 'w') as f:
+                    with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:
                         json.dump(up_group_info, f, ensure_ascii=False)
                     del up_latest[uid]
                 except:
@@ -355,7 +355,7 @@ def shell(group, para, right):
                         keys = para[3:]
                         try:
                             up_group_info[uid]["ad_keys"].extend(keys)
-                            with open(join(up_dir,'list.json'), 'w') as f:      # 更新UP主列表
+                            with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
                                 json.dump(up_group_info, f, ensure_ascii=False)
                             msg = f'添加成功.'
                         except:
@@ -371,7 +371,7 @@ def shell(group, para, right):
                                 up_group_info[uid]["ad_keys"].remove(wd)
                             except:
                                 erkeys.append(wd)
-                        with open(join(up_dir,'list.json'), 'w') as f:      # 更新UP主列表
+                        with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
                             json.dump(up_group_info, f, ensure_ascii=False)
                         msg = '移除成功。'
                         if erkeys:
@@ -392,12 +392,12 @@ def shell(group, para, right):
                     up_group_info[uid]["islucky"] = False
                 else:
                     msg = "参数错误，请重试。"
-                with open(join(up_dir,'list.json'), 'w') as f:      # 更新UP主列表
+                with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
                             json.dump(up_group_info, f, ensure_ascii=False)
     elif cmd.upper() == "UPDATE":
         if not right:
             return False, "你没有权限这么做"
-        with open(join(up_dir,'list.json'), 'r') as f:
+        with open(join(up_dir,'list.json'), 'r', encoding='UTF-8') as f:
             up_group_info = json.load(f)
         msg = "信息更新完成!"
 
@@ -522,7 +522,7 @@ def clean_cache():
         for root, dirs, files in os.walk(join(curpath,f'res/cache/{t}')):
             for f in files:
                 full__path_file = join(root, f)
-                if os.path.getmtime(full__path_file) < cache_clean_time_point:
+                if getmtime(full__path_file) < cache_clean_time_point:
                     try:
                         os.remove(full__path_file)
                     except Exception as error:
@@ -535,7 +535,7 @@ def clean_cache():
             try:
                 up_latest[uid] = up_latest[uid][(l-21):]        # 清理文件的同时清理内存
                 
-                with open(up_dir+uid+'.json','w') as f:
+                with open(up_dir+uid+'.json','w', encoding='UTF-8') as f:
                     json.dump({"history":up_latest[uid]}, f, ensure_ascii=False)
             except:
                 log.error(f'Err while clean history: {uid}')

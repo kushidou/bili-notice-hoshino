@@ -5,6 +5,8 @@ from io import BytesIO
 from os.path import dirname, join, exists
 from PIL import Image, ImageDraw
 import cairosvg as svg
+from loguru import logger as log
+
 '''
     点赞    like        like.svg,40x40
     分享    share       icos.svg,40x40
@@ -55,9 +57,9 @@ def get_ico(name, em=0):
             img_png = Image.open(BytesIO(base_png)).convert('RGBA')
             em = em if em else 14
             img_png = img_png.resize((em,em), Image.ANTIALIAS)
+
             return img_png
-        
-        print("> bili-notice.getImg.get_ico => no such ico file!")
+        log.warning(f'Get_ICO: {name} No such file!')
         return None
     # 读取svg文件
     svg_path = join(curpath, icos[name]['file'])
@@ -78,6 +80,7 @@ def get_ico(name, em=0):
     img_png = Image.open(BytesIO(svg_png)).convert('RGBA')
     # img_png.save(join(curpath,'test_ico_png_full.png'))
 
+
     return img_png
 
 
@@ -93,12 +96,18 @@ def get_Image(Type, url=None, md5=None, path=None):
             return img.convert('RGBA')
             
         resp = requests.get(url)
-        print(f"Getting image form Internet, file type={Type}, file name={filename}")
+        log.info(f"Getting image form Internet, file type={Type}, file name={filename}")
         img = Image.open(BytesIO(resp.content))
         dirpath = join(curpath, Type)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath)
         path_url = join(dirpath, url.split('/')[-1])
+        print(path_url)
+
+        
+        if img.mode == 'RGBA' and 'jpg' in path_url:
+            img = img.convert('RGB')
+            print('Image type convert: RGBA -> RGB')
         img.save(path_url)                # 保存文件
 
         return img.convert('RGBA')
@@ -114,9 +123,9 @@ def get_Image(Type, url=None, md5=None, path=None):
             return Image.open(path_url).convert('RGBA')
         # 文件不存在，则根据类型拼接url后联网获取
         if Type == 'face':
-            url_md5 = "https://i1.hdslb.com/bfs/face/" + file_md5
+            url_md5 = "https://i1.hdslb.com/bfs/face/" + md5
         elif Type == 'cover':
-            url_md5 = "https://i1.hdslb.com/bfs/archive/" + file_md5
+            url_md5 = "https://i1.hdslb.com/bfs/archive/" + md5
         else:
             return Image.new('RGBA',(104,104), 'white')
         resp = requests.get(url_md5)
