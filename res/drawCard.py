@@ -604,6 +604,7 @@ class Box(object):
                     if emo_name in emote.keys():        # 全匹配才能算作表情包
                         emo = emote[emo_name]
                         emo = emo.resize((20,20),Image.ANTIALIAS)
+                        print(f'point = {point}')
                         imgl.paste(emo,((point+1), 1),emo)
                         point = point + 22
                         ch_num = ch_num + emo_len
@@ -662,7 +663,7 @@ class Box(object):
                             draw = ImageDraw.Draw(imgl)
                         draw.text((point,4), link_ch, fill=blue_color, font=font)
                         link_ch_nxt = None if n+1>=len(lk_txt) else lk_txt[n+1]
-                        point = point + chgap(link_ch, link_ch_nxt, 7.5)
+                        point = point + int(chgap(link_ch, link_ch_nxt, 7.5))
                     ch_num = ch_num + lk_len
                     text = text[lk_len+1:]
 
@@ -682,7 +683,7 @@ class Box(object):
             else:
                 chnxt = None
                 # 中英文以及符号设置不同的间距。放弃特殊语言的支持。仅支持常见的中、日、英。
-            point = point + chgap(ch, chnxt, 7.5)
+            point = point + int(chgap(ch, chnxt, 7.5))
             ch_num = ch_num + 1
             if len(text) <= 1:
                 break
@@ -1197,7 +1198,7 @@ def chgap(ch:str, chnxt, base):
     #计算字符间距，都是英文则正常间距，且li等字符较瘦。中英、英中及中文之间2倍宽度，日文同理
     #瘦长
     if ch == " ":
-        return base
+        return int(base)
     if chnxt == None:
         chnxt = '\uffff'
     num = 2*base
