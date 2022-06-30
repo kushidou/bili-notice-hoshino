@@ -92,11 +92,12 @@ def get_Image(Type, url=None, md5=None, path=None):
         path_url = join(join(curpath, Type),filename)
         if exists(path_url):
             # print(f'Image {filename} exist, load from file.')
+            log.info(f"Getting image form Internet, from files, type={Type}, name={filename}")
             img = Image.open(path_url)
             return img.convert('RGBA')
             
         resp = requests.get(url)
-        log.info(f"Getting image form Internet, file type={Type}, file name={filename}")
+        log.info(f"Getting image form Internet, downloading, type={Type}, name={filename}")
         img = Image.open(BytesIO(resp.content))
         dirpath = join(curpath, Type)
         if not os.path.exists(dirpath):
@@ -117,9 +118,11 @@ def get_Image(Type, url=None, md5=None, path=None):
         path_url = join(dirpath,md5)
         if(exists(path_url + 'png')):
             path_url = path_url + 'png'
+            log.info(f"Getting image form MD5, from file, type={Type}, name={md5+'.png'}")
             return Image.open(path_url).convert('RGBA')
         if(exists(path_url + 'jpg')):
             path_url = path_url + 'jpg'
+            log.info(f"Getting image form MD5, from file, type={Type}, name={md5+'.jpg'}")
             return Image.open(path_url).convert('RGBA')
         # 文件不存在，则根据类型拼接url后联网获取
         if Type == 'face':
@@ -128,12 +131,13 @@ def get_Image(Type, url=None, md5=None, path=None):
             url_md5 = "https://i1.hdslb.com/bfs/archive/" + md5
         else:
             return Image.new('RGBA',(104,104), 'white')
+        log.info(f"Getting image form MD5, downloading, type={Type}, name={md5}")
         resp = requests.get(url_md5)
-        print(f"Getting image form Internet, file type={Type}, file name='{filename}")
         img = Image.open(BytesIO(resp.content))
         
         if not os.path.exists(dirpath):
             os.makedirs(dirpath)
+            log.warning(f'Make dir of {dirpath}')
         if Type in ('face', 'cover'):
             path_url = path_url + 'jpg'
         elif Type in ('pendant', 'avatar_subscript'):
@@ -142,6 +146,7 @@ def get_Image(Type, url=None, md5=None, path=None):
         return img.convert('RGBA')
 
     if path:
+        log.info(f'Getting image from file path.')
         return Image.open(path).convert('RGBA')
     return None
 

@@ -33,6 +33,7 @@ class Card(object):
     def __init__(self, dylist: dict):
         # 初始化时，解析部分基础信息，然后判断Type等
         # self.latest = dylist["data"]["cards"][0]
+        self.json_decode_result = False
         self.latest = dylist
         self.dytype = self.latest["desc"]["type"]
         self.dyorigtype=self.latest["desc"]["orig_type"]
@@ -49,7 +50,19 @@ class Card(object):
             else:
                 # 升级为正则替换
                 card_content = re.sub(r'\\+\/', '/', card_content)
-                card_content = re.sub(r'\\+\"', '"', card_content)
+                # card_content = re.sub(r'\\+\"', '"', card_content)
+                # :"",
+                card_content = re.sub(r'\\+\" ?\:', '":', card_content)
+                card_content = re.sub(r'\: ?\\+\"', ':"', card_content)
+                card_content = re.sub(r'\\+\" ?\,', '",', card_content)
+                card_content = re.sub(r'\, ?\\+\"', ',"', card_content)
+                # [""]
+                card_content = re.sub(r'\[ ?\\+\"', '["', card_content)
+                card_content = re.sub(r'\\+\" ?\]', '"]', card_content)
+                # {""}
+                card_content = re.sub(r'\{ ?\\+\"', '{"', card_content)
+                card_content = re.sub(r'\\+\" ?\}', '"}', card_content)
+
                 card_content = re.sub(r'\" ?\{', '{', card_content)
                 card_content = re.sub(r'\} ?\"', '}', card_content)
                 card_content = re.sub(r'\} ?\]\"', '} ]', card_content)
@@ -57,11 +70,24 @@ class Card(object):
                 # print(card_content)
                 log.trace(f'card detail content = {card_content}')
                 break
-        self.card=json.loads(card_content)
+        try:
+            self.card=json.loads(card_content)
+        except:
+            print('Error while decode card data json')
+            fname = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime()) + '_' + self.dyidstr
+            with open(join(curpath,'../log/') + fname + '_raw.json' , 'w') as f:
+                json.dump(dylist, f)
+            with open(join(curpath,'../log/') + fname + '_rep.json' , 'w') as f:
+                f.write(str(card_content))
+            log.error(f'エロ发生！动态卡片内容解码错误:uid={self.uid}, dynamic_id={self.dyid}. 已经保存至"log/{fname}.json"')
+            return
+
         if not self.dyid == int(self.dyidstr):
             self.dyid = int(self.dyidstr)
         self.extra = {} # 各种变蓝文字的信息
         log.trace(f'Object decode finish. Name={self.nickname}, Type={int(self.dytype)}')
+        self.json_decode_result=True
+
         
     
     def is_realtime(self, timeinterval: int):
@@ -604,7 +630,6 @@ class Box(object):
                     if emo_name in emote.keys():        # 全匹配才能算作表情包
                         emo = emote[emo_name]
                         emo = emo.resize((20,20),Image.ANTIALIAS)
-                        print(f'point = {point}')
                         imgl.paste(emo,((point+1), 1),emo)
                         point = point + 22
                         ch_num = ch_num + emo_len

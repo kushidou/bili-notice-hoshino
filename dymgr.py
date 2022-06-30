@@ -143,6 +143,9 @@ async def get_update():
                 break
             # 解析动态json
             dynamic = drawCard.Card(card)
+            if not dynamic.json_decode_result:
+                log.error(f'动态内容解析失败，id={card["desc"]["dynamic_id_str"]}, 详见drawCard日志。')
+                continue
 
             # 更新UP主的昵称
             if not dynamic.nickname == this_up["uname"]:
@@ -177,7 +180,7 @@ async def get_update():
                         }
                         dynamic_list.append(dyinfo)
                 else:
-                    log.info(f"This dynamic({dynamic.dyid}) is too old: {(int((time.time() - dynamic.dytime))/60)} minutes ago\n")
+                    log.info(f"This dynamic({dynamic.dyid}) is too old: {int(((time.time() - dynamic.dytime))/60)} minutes ago\n")
                     fai -=1
             else:
                 log.info(f"({dynamic.dyid})触发过滤词，或者是转发抽奖动态。\n")
@@ -235,7 +238,7 @@ def follow(uid, group):
                 upinfo["group"] = [group]
                 upinfo["watch"] = True
                 upinfo["islucky"]= False
-                upinfo["ad_keys"]= ["恰饭","广告"]
+                upinfo["ad_keys"]= []
 
                 up_group_info[uid]=upinfo
                 try:
