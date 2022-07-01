@@ -557,7 +557,7 @@ def m2hm(t:int):
 async def check_plugin_update():
     # 检查代码是否更新。由于现阶段代码会频繁更新，所以添加这个定期检查功能。
     # version.json内容：{"ver":"0.x.x", "date":"2022-07-01", "desc":"更新了版本检查功能，仅在日志里输出"}
-    url = 'http://gitee.com/kushidou/bili-notice-hoshino/raw/main//version.json'
+    url = 'http://gitee.com/kushidou/bili-notice-hoshino/raw/main/version.json'
     myverpath = join(curpath,'version.json')
     myver = 'old'
     # 获取本地版本。不存在version文件则视为极旧版本
