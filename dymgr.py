@@ -1,4 +1,5 @@
 import json, requests, time, datetime
+from numpy import cumsum
 import configparser as cfg
 import os
 from os.path import dirname, join, exists, getmtime
@@ -100,6 +101,7 @@ async def get_update():
     cache_clean_today = datetime.date.today().day
     if not cache_clean_today == cache_clean_date:
         clean_cache()
+        await check_plugin_update()
         cache_clean_date = cache_clean_today
     
     maxcount = len(up_list)
@@ -179,8 +181,10 @@ async def get_update():
                             "group":    group_list
                         }
                         dynamic_list.append(dyinfo)
+                    else:
+                        log.info(f'Dynamic (type={dynamic.dytype}, subtype={dynamic.dyorigtype}) is not supported now! 🕊🕊🕊')
                 else:
-                    log.info(f"This dynamic({dynamic.dyid}) is too old: {int(((time.time() - dynamic.dytime))/60)} minutes ago\n")
+                    log.info(f"This dynamic({dynamic.dyid}) is too old: {m2hm(time.time() - dynamic.dytime)} minutes ago\n")
                     fai -=1
             else:
                 log.info(f"({dynamic.dyid})触发过滤词，或者是转发抽奖动态。\n")
@@ -543,3 +547,44 @@ def clean_cache():
             except:
                 log.error(f'Err while clean history: {uid}')
     log.info('Clean uppers history finish!')
+
+
+def m2hm(t:int):
+    ms = t//60
+    t = f'{ms//60}h{ms%60}m' if ms>60 else f'{ms} minutes'
+    return t
+
+async def check_plugin_update():
+    # 检查代码是否更新。由于现阶段代码会频繁更新，所以添加这个定期检查功能。
+    # version.json内容：{"ver":"0.x.x", "date":"2022-07-01", "desc":"更新了版本检查功能，仅在日志里输出"}
+    url = 'http://gitee.com/kushidou/bili-notice-hoshino/raw/main//version.json'
+    myverpath = join(curpath,'version.json')
+    myver = 'old'
+    # 获取本地版本。不存在version文件则视为极旧版本
+    if exists(myverpath):
+        try:
+            with open(myverpath, 'r') as f:
+                mytxt = json.load(f)
+                myver = mytxt["ver"]
+        except:
+            myver = 'old'
+        
+    try:
+        res = requests.get(url)
+    except:
+        log.error(f'Check update failed! Please check your network.')
+        return
+    if res.status_code == 200:
+        txt = json.loads(res.text)
+        newver = txt["ver"]
+        if not newver == myver:
+            date = txt["date"]
+            desc = txt["desc"].replace("\n", "\n\t\t\t\t")
+            log.info(f'bili-notice-control插件已更新，请至github主页拉取最新代码。\n \
+                \t\t\t当前版本 {myver}, 最新版本号 {newver}, 更新时间{date}\n\
+                \t\t\t更新内容:\n\t\t\t\t{desc}')
+            return
+    else:
+        log.error(f'Check update failed! HTTP code = {res.status_code}')
+        return
+
