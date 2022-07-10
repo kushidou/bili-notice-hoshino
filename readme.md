@@ -1,53 +1,62 @@
 # bili动态监视器(Hoshino插件)
 
-[![Lisence-GPL3.0](https://img.shields.io/github/license/kushidou/bili-notice-hoshino)]((LICENSE))
+[![Lisence](https://img.shields.io/github/license/kushidou/bili-notice-hoshino)]((LICENSE))
 ![PythonVer](https://img.shields.io/badge/python-3.8+-blue)
 [![HoshinoVer](https://img.shields.io/badge/Hoshino-v2.0.0%2B-green)](https://github.com/Ice-Cirno/HoshinoBot)
-[![Version](https://img.shields.io/badge/Beta-v0.b.5.2-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
+[![Version](https://img.shields.io/badge/Beta-v0.b.5.3-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
 [![Q群](https://img.shields.io/badge/QQ%E7%BE%A4-655742099-yellow)](https://jq.qq.com/?_wv=1027&k=CXGsKj1P)
 
 ## Desc 简介
 
 用于视奸指定up主，并将其最新的动态信息推送到申请的群里。
 
-<figure class="half">
-    <img src="./res/pic_markdown/效果图.png" width="300"/>
-    <img src="./res/pic_markdown/生成图.png" width="300"/>
-</figure>
+<table rules="none" align="center">
+	<tr>
+		<td>
+			<center>
+				<img src="./res/pic_markdown/效果图.png" width="100%" />
+				<br/>
+				<font>群消息</font>
+			</center>
+		</td>
+		<td>
+			<center>
+				<img src="./res/pic_markdown/生成图.png" width="80%" />
+				<br/>
+				<font>生成的卡片</font>
+			</center>
+		</td>
+	</tr>
+</table>
+
 
 ## 功能：
 
 > - 获取UP主最新的动态，生成图片发送到群里
-> - 在群中关联up主，可以推送包括动态、视频、短视频、专栏文章、~~音频、~~相簿在内的绝大多数动态信息（不支持直播）。
+> - 在群中关联up主，可以推送包括动态、视频、短视频、专栏文章、音频、相簿在内的绝大多数动态信息（不支持直播）。
 > - 支持过滤转发的互动抽奖动态、广告（简单粗暴的关键词过滤），可以由**机器人管理员**控制。
 > - ~~机器人管理员和群主、群管理可以直接增加视奸的up主，普通群员的申请信息会私发到机器人管理员处进行处理。~~（还没做，仅群管理可以关注和取关）
-> - 协议、业务分离设计，方便不同机器人移植！ 接口文档即将更新~~
+> - 协议、业务分离设计，方便不同机器人移植！ [接口文档](./api.md)~~
 
 
 ## 部署
+
+详细的部署步骤，及Windows平台部署的注意事项，请访问本项目[Wiki页📕](https://github.com/kushidou/bili-notice-hoshino/wiki/%E9%83%A8%E7%BD%B2%E6%8F%92%E4%BB%B6)
 
 1. 进入到Hoshino的modules目录，克隆项目
 
 `git clone https://github.com/kushidou/bili-notice-hoshino.git`
 
-2. 安装几个python包（也可以手动pip安装）
+2. 安装依赖的包
 
 `pip install -r ./requirements.txt `
 
-> ***PS.***
-> 
-> 在Windows平台使用时，通常会报告`no library called "cairo" was found` 的错误，需要按照 [#8]() 的方案处理一下。
->
-> 参考连接：
->
-> [win10 安装 cairosvg](https://www.jianshu.com/p/5f566c26334f)
->
-> [GTK-for-Windows](https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer)
+3. 将'uppers_example'重命名为 uppers， 将'config_example.ini`重命名为 config.ini
 
-3. 将uppers_example重命名为 uppers   (uppers目录下 `list.json`为空时，至少要保证里面是`{}`)
-
-> ***PS.***
-> 由于插件的编写环境为Linux，当运行在Windows平台，自带的配置文件可能出现编码兼容性问题。可以创建一个新的文件夹并命名`uppers`，然后创建一个新的`list.json`文件，内容为空的json结构: `{}`
+<details>
+  <summary>config配置方法</summary>
+<a herf="https://github.com/kushidou/bili-notice-hoshino/wiki/config%E9%85%8D%E7%BD%AE">config配置-wiki</a>
+</details>
 
 
 4. 在`config/__bot__.py`的`MODULES_ON`中，添加`"bili-notice-hoshino"`，然后重启HoshinoBot。
@@ -55,32 +64,32 @@
 5. enjoy
 
 <details>
-  <summary>插件内文件说明</summary>
+  <summary>插件内重要文件说明</summary>
 
-> **bili_notice_hoshino.py** ==>  主程序
+> **bili_notice_hoshino.py** ==>  主程序，负责与机器人通讯
 >
-> **res** ==>  目录保存渲染所需要的图片文件和字体;以及缓存图片，以md5命名
+> **res** ==>  目录保存渲染所需要的图片文件和字体；缓存图片以md5命名
 >
 > **uppers/uid.json** ==>  保存各个up主的已发送动态列表(防止程序调试等情况反复重发)
 >
-> **uppers/list.json** ==>  记录up主和群的对应关系，及几个配置。
+> **uppers/list.json** ==>  关注列表，记录up主和群的对应关系。
 >
-> **log/xxx.log** ==>  日志，按日分类，最长七天。仍在测试中，暂不支持修改。
+> **log/xxx.log** ==>  日志，文件分割时间为每天凌晨4点，保存时间、记录等级可以通过配置文件修改。
 </details>
 
 ## 使用
 
 ### 1-关注
 
-启用插件后，群内发送  `关注672328094`  并@机器人即可关注 _嘉然今天吃什么_，嘉然更新的动态都会发过来哦~
+启用插件后，群内发送  `关注672328094`  并@机器人即可关注 _[@嘉然今天吃什么](https://space.bilibili.com/672328094)_，嘉然更新的动态都会发过来哦~
 
-![关注](./res/pic_markdown/dynamic_follow.png)
+![follow](./res/pic_markdown/dynamic_follow.png)
 
 ### 2-取关
 
-群内发送  `取关208259`   并@机器人即可取关叔叔， 请注意，只有所有群都取关叔叔后，动态更新轮询才会跳过叔叔哦！
+群内发送  `取关208259`   并@机器人即可取关叔叔， 请注意，只有所有群都取关叔叔后，动态更新轮询才会跳过叔叔！
 
-![取关](./res/pic_markdown/dynamic_unfollow.png)
+![unfollow](./res/pic_markdown/dynamic_unfollow.png)
 
 ### 3-查看已关注
 
@@ -88,20 +97,10 @@
 
 ![关注列表](./res/pic_markdown/follow_list.png)
 
-机器人管理员发送`所有关注`、`所有群关注`可以获得所有所有群关注列表的详细信息
+机器人管理员直接发送`所有关注`、`所有群关注`可以获得所有所有群关注列表的详细信息
 
-### 4-debug
 
-由于插件刚刚推出beta版，不仅功能没做完，还有很多隐形bug，因此 `bili_notice_test.py` 提供了一个debug的方法，该方法只能机器人的管理员使用。
-
-发送"测试动态\[dynamic_id\]"或者"测试up\[uid\]"即可让机器人立即尝试发送一条动态，来查看问题出在哪里。报告问题时也请提供该方法得到的错误日志。
-
-<figure class="half">
-    <img src="./res/pic_markdown/debug-测试动态.png" width="300"/>
-    <img src="./res/pic_markdown/debug-测试up.png" width="300"/>
-</figure>
-
-### 5-机器人管理指令
+### 4-机器人管理指令
 
 支持机器人管理员调整bili动态监视器的全局配置，比如是否过滤转发抽奖、是否进行关键词屏蔽等。比如：
 
@@ -111,7 +110,7 @@
 |---|-----|-------|---------|---|
 |过滤抽奖|islucky|uid|true\|false|是否屏蔽抽奖开奖动态或者转发的抽奖。|
 |关键词过滤|black-words|uid|add 关键词1 关键词2|add 增加关键词，remove移除，list列出已经设置的关键词|
-|更新信息|update| - | - |立即读取配置文件，更新配置（不检查合法性，可能引发错误）
+|更新信息|update| - | - |立即读取配置文件和up记录，更新配置（不检查合法性，可能引发错误）
 
 ## 后记
 
@@ -142,7 +141,7 @@
 
 - [ ] 修复即将遇到的各种奇奇怪怪的BUG
 
-- [ ] UP主信息换用数据库存储，提高容量(咕咕咕~等我先学一下数据库的基础)
+- [ ] ~~UP主信息换用数据库存储，提高容量(咕咕咕~等我先学一下数据库的基础)~~ 
 
 - [x] 提供移植指南，开发适用于其他bot或者nonebot1、nonebot2的插件版本
 

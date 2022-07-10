@@ -1,3 +1,4 @@
+from multiprocessing.dummy import current_process
 import os
 import requests
 import base64
@@ -92,12 +93,12 @@ def get_Image(Type, url=None, md5=None, path=None):
         path_url = join(join(curpath, Type),filename)
         if exists(path_url):
             # print(f'Image {filename} exist, load from file.')
-            log.info(f"Getting image form Internet, from files, type={Type}, name={filename}")
+            log.debug(f"Getting image form Internet, from files, type={Type}, name={filename}")
             img = Image.open(path_url)
             return img.convert('RGBA')
             
         resp = requests.get(url)
-        log.info(f"Getting image form Internet, downloading, type={Type}, name={filename}")
+        log.debug(f"Getting image form Internet, downloading, type={Type}, name={filename}")
         img = Image.open(BytesIO(resp.content))
         dirpath = join(curpath, Type)
         if not os.path.exists(dirpath):
@@ -118,11 +119,11 @@ def get_Image(Type, url=None, md5=None, path=None):
         path_url = join(dirpath,md5)
         if(exists(path_url + 'png')):
             path_url = path_url + 'png'
-            log.info(f"Getting image form MD5, from file, type={Type}, name={md5+'.png'}")
+            log.debug(f"Getting image form MD5, from file, type={Type}, name={md5+'.png'}")
             return Image.open(path_url).convert('RGBA')
         if(exists(path_url + 'jpg')):
             path_url = path_url + 'jpg'
-            log.info(f"Getting image form MD5, from file, type={Type}, name={md5+'.jpg'}")
+            log.debug(f"Getting image form MD5, from file, type={Type}, name={md5+'.jpg'}")
             return Image.open(path_url).convert('RGBA')
         # 文件不存在，则根据类型拼接url后联网获取
         if Type == 'face':
@@ -131,7 +132,7 @@ def get_Image(Type, url=None, md5=None, path=None):
             url_md5 = "https://i1.hdslb.com/bfs/archive/" + md5
         else:
             return Image.new('RGBA',(104,104), 'white')
-        log.info(f"Getting image form MD5, downloading, type={Type}, name={md5}")
+        log.debug(f"Getting image form MD5, downloading, type={Type}, name={md5}")
         resp = requests.get(url_md5)
         img = Image.open(BytesIO(resp.content))
         
@@ -149,6 +150,15 @@ def get_Image(Type, url=None, md5=None, path=None):
         log.info(f'Getting image from file path.')
         return Image.open(path).convert('RGBA')
     return None
+
+def save_Image(img:object, Type:str, name:str, path=None):
+    if not path:
+        curpath = join(cur, 'cache')
+        if not exists(join(curpath, type)):
+            os.makedirs(join(curpath, Type))
+        img.save(join(join(curpath, Type), name))
+    else:
+        img.save(join(path, name))
 
 # 获得一个圆形的蒙版，根据头像大小来获得
 # img为头像的PIL对象

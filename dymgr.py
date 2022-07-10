@@ -6,14 +6,6 @@ from os.path import dirname, join, exists, getmtime
 from .res import drawCard
 from loguru import logger as log
 
-available_type=[
-    2,      # Picture
-    4,      # text
-    8,      # video
-    64,     # article
-    256     # audio
-]
-
 help_info="""=== bili-notice-hoshino 帮助 ===
     
 bili-ctl para1 para2 para3 [...]
@@ -36,12 +28,54 @@ up_latest = {}
 up_list=[]
 cache_clean_date = 0
 
-# 初始化日志系统
-drawCard.initlog()
-
 # 读取配置文件
-conf = cfg.ConfigParser()
+if not exists(join(curpath, 'config.ini')):
+    try:
+        os.rename(join(curpath, 'config_example.ini'),join(curpath, 'config.ini'))
+    except:
+        print("\r\n\033[1;41m[Error]\033[0m\tBili-notice:\tCannot Find config.ini or config_example.ini !!!")
+conf = cfg.ConfigParser(allow_no_value=True)
 conf.read(join(curpath, 'config.ini'), encoding='utf-8')
+comcfg = conf.items('common')
+drawcfg = conf.items('drawCard')
+
+if conf.getboolean('common','only_video'):
+    available_type = [8]
+elif conf.getboolean('common','only_dynamic'):
+    available_type = [2,4]
+else:
+    available_type=[
+        2,      # Picture
+        4,      # text
+        8,      # video
+        64,     # article
+        256     # audio
+    ]
+
+log_level = conf.get('common','log_level').upper()
+if log_level not in ['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']:
+    print(f'Config Error: log_level(={log_level}) not correct! Force log_level to INFO')
+    log_level = 'INFO'
+log_max_days = conf.get('common', 'log_max_days')
+if not log_max_days.isdigit():
+    log_max_days = 15
+    print(f'Config Error: log_max_days get ({log_max_days}), we need number!')
+
+# 初始化日志系统
+path_log = join(dirname(__file__), "log/")
+if not exists(path_log):
+    os.mkdir(path_log)
+log.add(
+    path_log+'{time:YYYY-MM-DD}.log',
+    level = log_level,
+    rotation = "04:00",
+    retention = log_max_days+" days",
+    backtrace = False,              # 调试，生产请改为False
+    enqueue = True,
+    diagnose = False,              # 调试，生产请改为False
+    format = '{time:HH:mm:ss} [{level}] \t{message}'
+)
+
 
 # 从文件中读取up主配置列表和up主发送动态的历史
 up_group_info, up_list={}, []
@@ -97,13 +131,13 @@ async def get_update():
     if len(up_group_info) == 0:
         return 0, []
 
-    # 借用轮询来清理垃圾
+    # 借用轮询来清理垃圾和检查更新
     cache_clean_today = datetime.date.today().day
     if not cache_clean_today == cache_clean_date:
         clean_cache()
         await check_plugin_update()
         cache_clean_date = cache_clean_today
-    
+    # 提取下一个up，如果没有人关注的话，状态改成false，跳过不关注的人
     maxcount = len(up_list)
     while 1:
         this_up = up_group_info[up_list[number]]
@@ -125,18 +159,15 @@ async def get_update():
             else:
                 number = number+1
      
-    group_list = this_up["group"]
     if this_up["watch"]:
-        
         uid_str = up_list[number]
         try:
             res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
         except:
             log.info('Err: Get dynamic list failed.')
             return -1, []
-        res.encoding = 'utf-8'
+        res.encoding = 'utf-8'          # 兼容python3.9
         dylist = json.loads(res.text)
-
         if not dylist["code"] == 0:
             return -1, []
 
@@ -158,17 +189,18 @@ async def get_update():
             
             log.info('========== New Dynamic Card =========')
             log.info(f"UP={dynamic.nickname}({dynamic.uid}), Dynamic_id={dynamic.dyid}, Type={int(dynamic.dytype)}, ori_type={int(dynamic.dyorigtype)}")
-            
-            if not dynamic.check_black_words(this_up["ad_keys"], this_up["islucky"]):  # 如果触发过滤关键词，则忽视该动态
-                if dynamic.is_realtime(30):             # 太久的动态不予发送
+            if (not conf.getboolean('common','repost')) and dynamic.dytype == 1:
+                log.info(f"已设置不分享转发类动态。\n")
+                fai -= 1
+                continue
+            if not dynamic.check_black_words(conf.get('common','global_black_words'), this_up["ad_keys"], this_up["islucky"]):  # 如果触发过滤关键词，则忽视该动态
+                if dynamic.is_realtime(conf.getint('common','available_time')):             # 太久的动态不予发送
                     # 只解析支持的类型
                     if dynamic.dytype in available_type or (dynamic.dytype==1 and dynamic.dyorigtype in available_type):
-                        drawBox = drawCard.Box(650, 1200)       # 创建卡片图片的对象
-                        dyimg, dytype = dynamic.draw(drawBox)   # 绘制动态
+                        drawBox = drawCard.Box(conf)       # 创建卡片图片的对象
+                        dyimg, dytype = dynamic.draw(drawBox, conf.getboolean('cache', 'dycard_cache'))   # 绘制动态
                 
                         msg = f"{dynamic.nickname} {dytype}, 点击链接直达：\n https://t.bilibili.com/{dynamic.dyidstr}  \n[CQ:image,file={dyimg}]"
-                        group_list = this_up["group"]
-                        suc+=1
                         dyinfo = {
                             "nickname": dynamic.nickname,
                             "uid":      dynamic.dyid,
@@ -178,11 +210,13 @@ async def get_update():
                             "pic":      dyimg,
                             "link":     f'https://t.bilibili.com/{dynamic.dyidstr}',
                             "sublink":  "",
-                            "group":    group_list
+                            "group":    this_up["group"]
                         }
+                        
                         dynamic_list.append(dyinfo)
+                        suc+=1
                     else:
-                        log.info(f'Dynamic (type={dynamic.dytype}, subtype={dynamic.dyorigtype}) is not supported now! 🕊🕊🕊')
+                        log.info(f'(type={dynamic.dytype}, subtype={dynamic.dyorigtype}) 未受支持! 🕊🕊🕊 或者设置为不发送\n')
                 else:
                     log.info(f"This dynamic({dynamic.dyid}) is too old: {m2hm(time.time() - dynamic.dytime)} minutes ago\n")
                     fai -=1
@@ -521,20 +555,38 @@ def get_follow_bygrp(group:str, level:int=0):
 
 
 #====================附加功能，外部请勿调用======================
+# 每日清理垃圾，减少文件占用，减少内存占用
 def clean_cache():
     global up_latest, up_dir
-    cache_clean_time_point = time.time() - 7*3600*24
-    dirname = ["image", "cover", "article_cover"]
-    for t in dirname:
-        for root, dirs, files in os.walk(join(curpath,f'res/cache/{t}')):
-            for f in files:
-                full__path_file = join(root, f)
-                if getmtime(full__path_file) < cache_clean_time_point:
-                    try:
-                        os.remove(full__path_file)
-                    except Exception as error:
-                        log.error(f'Err while clean cache: {f} in "{t}"!')
-    log.info(f'Clean image cache finish!')
+    img_cache = conf.getint('cache', 'image_cache_days')
+    dy_cache  = conf.getint('cache', 'dycard_cache_days')
+    dy_flag = conf.getboolean('cache', 'dycard_cache')
+    if img_cache > 0:
+        cache_clean_time_point = time.time() - img_cache*3600*24
+        dirname = ["image", "cover", "article_cover"]
+        for t in dirname:
+            for root, dirs, files in os.walk(join(curpath,f'res/cache/{t}')):
+                for f in files:
+                    full__path_file = join(root, f)
+                    if getmtime(full__path_file) < cache_clean_time_point:
+                        try:
+                            os.remove(full__path_file)
+                        except Exception as error:
+                            log.error(f'Err while clean image cache: {f} in "{t}"!')
+        log.info(f'Clean image cache finish!')
+    if dy_cache > 0 and dy_flag:
+        cache_clean_time_point = time.time() - dy_cache*3600*24
+        dirname = "dynamic_card"
+        if exists(join(curpath, dirname)):
+            for root, dirs, files in os.walk(join(curpath,f'res/cache/{dirname}')):
+                for f in files:
+                    full__path_file = join(root, f)
+                    if getmtime(full__path_file) < cache_clean_time_point:
+                        try:
+                            os.remove(full__path_file)
+                        except Exception as error:
+                            log.error(f'Err while clean dynamic cache: {f} in "{dirname}"!')
+        log.info(f'Clean dynamic cache finish!')
 
     for uid in up_list:
         l = len(up_latest[uid])

@@ -1,28 +1,20 @@
 import os, json, time, io, re, base64
+from turtle import bgcolor
+from xmlrpc.client import boolean
 from loguru import logger as log
 from math import ceil
 from os.path import dirname, join, exists
 from PIL import Image,ImageFont,ImageDraw,ImageFilter
+import configparser as cfg
 
-from .getImg import get_ico, get_Image, round_mask
+from .getImg import get_ico, get_Image, save_Image
 
 curpath = dirname(__file__)
-# Init log system
-def initlog():
-    path_log = join(dirname(__file__), "../log/")
-    if not exists(path_log):
-        os.mkdir(path_log)
-    log.add(
-        path_log+'{time:YYYY-MM-DD}.log',
-        level="DEBUG",
-        rotation="04:00",
-        retention="7 days",
-        backtrace=False,
-        enqueue=True,
-        diagnose=False,              # 调试，生产请改为False
-        format='{time:MM-DD HH:mm:ss} [{level}]\t{module}.{function}({line}): {message}'
-    )
-
+# 读取配置文件
+conf = cfg.ConfigParser()
+conf.read(join(curpath, '../config.ini'), encoding='utf-8')
+# comcfg = conf.items('common')
+# drawcfg = conf.items('drawCard')
 
 # 生成动态卡片的具体代码
 # 各个程序，传入参数为json代码和子卡片标志
@@ -93,9 +85,12 @@ class Card(object):
     def is_realtime(self, timeinterval: int):
         return False if timeinterval*60 < (int(time.time()) - self.dytime) else True
 
-    def check_black_words(self, blk, islucky):
+    def check_black_words(self, gblk, ublk, islucky):
         ret = False
         txt = ""
+        gblk = re.sub(r' ?, ?', ',', gblk)
+        blk = gblk.split(',') + ublk
+
         # 根据不同的动态内容，提取特定的区块来过滤。
         #txt = json.dumps(self.card, ensure_ascii=False) 
         if self.dytype == 2:
@@ -112,10 +107,10 @@ class Card(object):
             if b[0] == '\\':
                 c = re.findall(b[1:], txt)
                 c = len(c) if c else 0
-                log.info(f'black-words: find {b} {c} times!')
+                log.debug(f'black-words: find {b} {c} times!')
             else:
                 c = txt.count(b)
-                log.info(f'black-words: find {b} {c} times!')
+                log.debug(f'black-words: find {b} {c} times!')
             if c:
                 ret = True
                 log.info(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
@@ -131,7 +126,7 @@ class Card(object):
 
 
     @log.catch
-    def draw(self, box:object()):
+    def draw(self, box:object(), dy_cache:bool=False):
         # 解析通用的信息，并绘制头像、昵称、背景、点赞box，然后调用其他绘制动态主体，最后把所有box合成
         # 制作头像  == faceimg ==
         
@@ -236,10 +231,8 @@ class Card(object):
 
 
         #根据所有的长度制作背景图   == bg ==
-        length = 27 + nickimg.size[1] + 4 + bodyimg.size[1] + 4 + bottomimg.size[1]
         bgcard = self.latest["desc"]["user_profile"].get("decorate_card")
         if bgcard:
-            # print("Find Fans background (number)")
             card_url     = bgcard["card_url"]
             decorate_img = get_Image(Type="decorate_card", url=card_url)
             decorate_col = bgcard["fan"]["color"]
@@ -251,20 +244,20 @@ class Card(object):
             decorate_col = (0,0,0)
             decorate_num = 0
             log.debug('No card background.')
-        log.info(f'BackgroundBox: height={length}, 卡片挂件={bool(decorate_img)}')
-        bgimg = box.bg(height=length, decorate_card=decorate_img, fan_number=decorate_num, fancolor=decorate_col)
+        log.info(f'BackgroundBox: 卡片挂件={bool(decorate_img)}')
+        bgimg = box.bg(decorate_card=decorate_img, fan_number=decorate_num, fancolor=decorate_col)
 
-        log.debug(f'Height of dynamic pic = {length}. Start splicing.')
-        bgimg.paste(faceimg, (9,9), mask=faceimg)
-        bgimg.paste(nickimg, (88,27), mask=nickimg)
-        if self.dytype == 1:
-            bgimg.paste(bodyimg, (76,75), mask=bodyimg)
-        else:
-            bgimg.paste(bodyimg, (88,75), mask=bodyimg)
-        bgimg.paste(bottomimg, (88, length-48), mask=bottomimg)
+        img = box.combine(face=faceimg, nick=nickimg, body=bodyimg, bottom=bottomimg, bg=bgimg, is_reposted=True if self.dytype==1 else False)
 
+        if dy_cache:
+            try:
+                dy_pic_name = f'{self.uid}_{self.nickname}_{self.dyid}_{self.dytype}_{self.dyorigtype}.png'
+                save_Image(img, 'dynamic_card', name = dy_pic_name)
+                log.info(f'Sace Dynamic Card Pic as "{dy_pic_name}" -->  res/cache/dynamic_card/ ')
+            except:
+                log.warning(f'Save Dynamic Card Pic failed! ')
         bio = io.BytesIO()
-        bgimg.save(bio, format="PNG")
+        img.save(bio, format="PNG")
         base64_img = 'base64://' + base64.b64encode(bio.getvalue()).decode()
         log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.\n')
 
@@ -409,18 +402,44 @@ class Box(object):
     # self.width = 300
     # self.minheight = 100
 
-    def __init__(self, width, max_height):
-        self.maxheight = max_height
-        self.width = width
-        self.minheight = int(width / 2)
+    # def __init__(self, width, max_height):
+    def __init__(self, conf:object):
+        self.maxheight = conf.getint('drawCard','height_max')
+        self.width = conf.getint('drawCard','width')
+        self.minheight = int(conf.getint('drawCard','width') / 2)
         self.path = dirname(__file__)
         self.msyh = join(self.path, 'fonts/pinfang.ttf')
         self.fanfont = join(self.path, 'fonts/fans_num.ttf')
+        self.fontsize_large = conf.getint('drawCard','font_size_1')
+        self.fontsize_medium = conf.getint('drawCard','font_size_2')
+        self.fontsize_small = conf.getint('drawCard','font_size_3')
+        self.box_gap_agni = conf.getint('drawCard','box_size_agnification')
+        self.image_max = conf.getint('drawCard','image_max_size')
+        self.img_min    = conf.getint('drawCard','image_min_size')
+
+
 
     # ====================box.combine====================
     # 按顺序组合box，计算整体长度
-    # 其中背景、...
-    # 大概不需要这个了
+    def combine(self, face:object, nick:object, body:object, bottom:object, bg=None, is_reposted:bool=False):
+        len = 27 + nick.size[1] + 4 + body.size[1] + 4 + bottom.size[1]
+        log.debug(f'Height of dynamic pic = {len}. Start splicing.')
+        img = Image.new('RGBA', (self.width, len), 'white')
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle(((0,0),(img.size[0]-1,img.size[1]-1)), radius=8, fill=(255,255,255,255))
+
+        img.paste(face, (9,9), mask=face)
+        img.paste(nick, (88,27), mask=nick)
+        if is_reposted:
+            img.paste(body, (88, 75), mask=body)
+        else:
+            img.paste(body, (76, 75), mask=body)
+        img.paste(bottom, (88, len-48), mask=bottom)
+        if bg:
+            img.paste(bg, (self.width-48-bg.size[0],18 ), mask=bg)
+        return img
+
+
 
 
     # ====================box.face()====================
@@ -429,7 +448,7 @@ class Box(object):
     # offset 9,9
     def face(self, face, pendant=None, avatar_subscript=None):
         fsize,psize,asize = 42, 72, 18
-        img = Image.new('RGBA', (psize,psize), color=(0,0,0,0))
+        img = Image.new('RGBA', (psize,psize), color='white')
         # round face mask
         mask = Image.new('RGBA', (fsize*2, fsize*2), color=(0,0,0,0))
         mask_draw = ImageDraw.Draw(mask)
@@ -457,17 +476,17 @@ class Box(object):
     # return 图片对象
     # offset 88,27
     def nickname(self, nick, time, isBigVIP=False):
-        img = Image.new('RGBA', (self.width - 88, 46), (0,0,0,0))
+        ts=(self.width - 88, 46)        # target size
+        img = Image.new('RGBA', ts, (255,255,255,255))
         draw = ImageDraw.Draw(img)
+        font = ImageFont.truetype(self.msyh, self.fontsize_large)
 
-        font = ImageFont.truetype(self.msyh, 18)
         nick_color = (251, 114, 153, 255) if isBigVIP else (32,32,32,255)
         draw.text((0,3), nick, fill=nick_color,font=font)
         
-        font = ImageFont.truetype(self.msyh,12)
+        font = ImageFont.truetype(self.msyh,self.fontsize_small)
         time_color = (153, 162, 170,255)
         draw.text((0,31), time, fill=time_color,font=font)
-
         return img
 
         
@@ -476,22 +495,22 @@ class Box(object):
     # 底部栏，如果数据都趋近于0，就绘制预设数字(114514),如果采集时已经有一定数据，那么用原始数据
     # return 图片对象，高
     def bottom(self, share, comm, like):
-        img = Image.new('RGBA', (92*3, 48), (0,0,0,0))
+        img = Image.new('RGBA', (92*3, 48), 'white')
         draw = ImageDraw.Draw(img)
         font = ImageFont.truetype(self.msyh, 12)
         color = (153, 162, 170, 255)
 
         ico = get_ico('share', em=20)
         img.paste(ico, (0,16), ico)
-        draw.text((20+4, 18), num_human(share), fill=color,font=font)
+        draw.text((20+4, 18), num_human(share) if share else '分享', fill=color,font=font)
 
         ico = get_ico('comment', em=20)
         img.paste(ico, (0+96,16), ico)
-        draw.text((96+20+4, 18), num_human(comm), fill=color,font=font)
+        draw.text((96+20+4, 18), num_human(comm) if comm else '评论', fill=color,font=font)
 
         ico = get_ico('like', em=20)
         img.paste(ico, (0+192,16), ico)
-        draw.text((192+20+4, 18), num_human(like), fill=color,font=font)
+        draw.text((192+20+4, 18), num_human(like) if like else '点赞', fill=color,font=font)
 
         return img
 
@@ -500,27 +519,24 @@ class Box(object):
     # 动态卡片的整体背景，包括外围动态卡片白色背景和右上角的装扮、三个点
     # 输入内容包括整体高度、装扮的图片和数字。整体高度由 nickname + body + buttom 三部分组成
     # return 图标对象
-    def bg(self, height, decorate_card=None, fan_number="00000", fancolor=(31,31,31,255)):
-        img = Image.new('RGBA', (self.width, height), (0,0,0,0))
-        draw=ImageDraw.Draw(img)
-        draw.rounded_rectangle(((0,0),(img.size[0]-1,img.size[1]-1)), radius=8, fill=(255,255,255,255))
-
+    def bg(self, decorate_card=None, fan_number="00000", fancolor=(31,31,31,255)):
+        img = None
         if decorate_card:
             # 动态装扮两种尺寸，横竖比大于2:1=>146x44，否则60 × 34
             s=decorate_card.size
-            
             if s[0]/s[1] > 2:
                 log.debug(f'Got decorate card object, its size={s}, target size=(146,44)')
+                img = Image.new('RGBA', (146,44), 'white')
                 dimg = decorate_card.resize((146,44), Image.ANTIALIAS)
-                draw = ImageDraw.Draw(dimg)
+                img.paste(dimg, (0,0), dimg)
+                draw = ImageDraw.Draw(img)
                 font = ImageFont.truetype(self.fanfont, 12)
                 draw.text((40,17), fan_number, fill=fancolor, font=font)
-
-                img.paste(dimg, (self.width - 48 - 146,18), dimg)
             else:
                 log.debug(f'Got decorate card object, its size={s}, target_size(60,34)')
+                img = Image.new('RGBA', (146,44), 'white')
                 dimg = decorate_card.resize((60,34), Image.ANTIALIAS)
-                img.paste(dimg, (self.width - 48 - 60,18), dimg)
+                img.paste(dimg, (0,0), dimg)
         return img
 
 
@@ -571,6 +587,7 @@ class Box(object):
         blue_color = (23, 139, 207, 255)
 
         rep = "ori" if is_reposted else "now"
+        bgcolor = (244, 245, 247,255) if is_reposted else (255,255,255,255)
         if ex:
             # print(f'ex:{ex}')
             emote = ex["emolist"]
@@ -601,7 +618,7 @@ class Box(object):
 
         point = 0   # 文字位置指针(宽)
         ch_num = 0  # 文字数量指针
-        imgl = Image.new('RGBA', (self.width-88 - 24, 22), (0,0,0,0))
+        imgl = Image.new('RGBA', (self.width-88 - 24, 22), bgcolor)
         draw = ImageDraw.Draw(imgl)
         font = ImageFont.truetype(self.msyh, 14)
         fulltextcard = []
@@ -619,7 +636,7 @@ class Box(object):
                     text = text[1:]
                     ch_num = ch_num + 1
                 fulltextcard.append(imgl)
-                imgl = Image.new('RGBA', (self.width-88 -24, 22), (0,0,0,0))
+                imgl = Image.new('RGBA', (self.width-88 -24, 22), bgcolor)
                 draw = ImageDraw.Draw(imgl)
                 continue
             # 遇到[，判断是否遇到了表情包
@@ -784,7 +801,8 @@ class Box(object):
             line=3
         log.debug(f'Got {pic_count} pics, {line} pics per line.')
 
-        img = Image.new('RGBA', (text_img.size[0], length), (0,0,0,0))
+        bgcolor = (244, 245, 247,255) if is_reposted else (255,255,255,255)
+        img = Image.new('RGBA', (text_img.size[0], length), bgcolor)
         img.paste(text_img, (0,0), text_img)
         # ====error====
         for n, im in enumerate(nimage):
@@ -806,7 +824,8 @@ class Box(object):
 
         # 视频小卡片，封面203x127，贴合小边缩放、裁切；标题最多两行，简介最多两行，
         # 创建基础卡片
-        vimg = Image.new('RGBA', (self.width-88 - 24, 129), (0,0,0,0))
+        bgcolor = (244, 245, 247,255) if is_reposted else (255,255,255,255)
+        vimg = Image.new('RGBA', (self.width-88 - 24, 129), bgcolor)
         draw = ImageDraw.Draw(vimg)
         fontbig = ImageFont.truetype(self.msyh, 14)
         fontsmall=ImageFont.truetype(self.msyh, 12)
@@ -882,7 +901,8 @@ class Box(object):
         vimg.paste(ico, (offsetx, offsety), ico)
         draw.text((offsetx+20, offsety-1), num_human(danmuku), color_info, fontsmall)        
         # 图片拼接
-        img = Image.new('RGBA', (self.width-88 - 24, card_point+129), (0,0,0,0))
+        bgcolor = (244, 245, 247,255) if is_reposted else (255,255,255,255)
+        img = Image.new('RGBA', (self.width-88 - 24, card_point+129), bgcolor)
         if (not is_reposted) and dynamic_text:
             img.paste(img_dynamic, (0,0), img_dynamic)
         img.paste(vimg, (0, card_point), vimg)
