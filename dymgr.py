@@ -631,10 +631,11 @@ async def check_plugin_update():
         newver = txt["ver"]
         if not newver == myver:
             date = txt["date"]
-            desc = txt["desc"].replace("\n", "\n\t\t\t\t")
-            log.info(f'bili-notice-control插件已更新，请至github主页拉取最新代码。\n \
-                \t\t\t当前版本 {myver}, 最新版本号 {newver}, 更新时间{date}\n\
-                \t\t\t更新内容:\n\t\t\t\t{desc}')
+            desc = txt["desc"].replace("\n", "\n\t\t\t\t\t\t")
+            log.info(f'bili-notice-control插件已更新, 请至github主页拉取最新代码。\n \
+                \t地址:  https://github.com/kushidou/bili-notice-hoshino  \n   \
+                \t当前版本 {myver}, 最新版本号 {newver}, 更新时间{date}\n\
+                \t更新内容:\n\t\t\t\t\t\t{desc}')
             return
     else:
         log.error(f'Check update failed! HTTP code = {res.status_code}')

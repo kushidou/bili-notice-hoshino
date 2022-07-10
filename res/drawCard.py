@@ -413,7 +413,7 @@ class Box(object):
         self.fontsize_large = conf.getint('drawCard','font_size_1')
         self.fontsize_medium = conf.getint('drawCard','font_size_2')
         self.fontsize_small = conf.getint('drawCard','font_size_3')
-        self.box_gap_agni = conf.getint('drawCard','box_size_agnification')
+        self.box_gap_agni = conf.getfloat('drawCard','box_size_agnification')
         self.image_max = conf.getint('drawCard','image_max_size')
         self.img_min    = conf.getint('drawCard','image_min_size')
 
