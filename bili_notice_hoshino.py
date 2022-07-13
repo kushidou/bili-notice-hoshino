@@ -37,7 +37,11 @@ async def bili_watch():
 
             msg = f'{dyinfo["nickname"]} {dytype}, 点击链接直达：\n {dyinfo["link"]}  \n[CQ:image,file={dyinfo["pic"]}]'
             for gid in dyinfo["group"]:
-                await bot.send_group_msg(group_id=gid, message=msg)
+                for sid in hoshino.get_self_ids():
+                    try:
+                        await bot.send_group_msg(self_id = sid, group_id=gid, message=msg)
+                    except Exception as e:
+                        sv.logger.info(f'bot账号{sid}不在群{gid}中，将忽略该消息')
                 time.sleep(1)
         time.sleep(5)
 
