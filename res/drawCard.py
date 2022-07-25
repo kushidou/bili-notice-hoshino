@@ -1,6 +1,4 @@
 import os, json, time, io, re, base64
-from turtle import bgcolor
-from xmlrpc.client import boolean
 from loguru import logger as log
 from math import ceil
 from os.path import dirname, join, exists
@@ -65,10 +63,11 @@ class Card(object):
         try:
             self.card=json.loads(card_content)
         except:
+            # if exists(join(curpath,'../log/')
             print('Error while decode card data json')
             fname = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime()) + '_' + self.dyidstr
             with open(join(curpath,'../log/') + fname + '_raw.json' , 'w') as f:
-                json.dump(dylist, f)
+                json.dump(dylist, f, ensure_ascii=False)
             with open(join(curpath,'../log/') + fname + '_rep.json' , 'w') as f:
                 f.write(str(card_content))
             log.error(f'エロ发生！动态卡片内容解码错误:uid={self.uid}, dynamic_id={self.dyid}. 已经保存至"log/{fname}.json"')
