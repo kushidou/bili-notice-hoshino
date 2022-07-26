@@ -33,35 +33,12 @@ class Card(object):
         self.nickname=self.latest["desc"]["user_profile"]["info"]["uname"]
         self.uid   = self.latest["desc"]["user_profile"]["info"]["uid"]
         card_content= self.latest["card"]
-        while True:
-            if card_content.count('\\\\"') >= 1 or card_content.count('\\\\/') >= 1:
-                card_content = card_content.replace('\\\\','\\')
-                
-            else:
-                # 升级为正则替换
-                card_content = re.sub(r'\\+\/', '/', card_content)
-                # card_content = re.sub(r'\\+\"', '"', card_content)
-                # :"",
-                card_content = re.sub(r'\\+\" ?\:', '":', card_content)
-                card_content = re.sub(r'\: ?\\+\"', ':"', card_content)
-                card_content = re.sub(r'\\+\" ?\,', '",', card_content)
-                card_content = re.sub(r'\, ?\\+\"', ',"', card_content)
-                # [""]
-                card_content = re.sub(r'\[ ?\\+\"', '["', card_content)
-                card_content = re.sub(r'\\+\" ?\]', '"]', card_content)
-                # {""}
-                card_content = re.sub(r'\{ ?\\+\"', '{"', card_content)
-                card_content = re.sub(r'\\+\" ?\}', '"}', card_content)
 
-                card_content = re.sub(r'\" ?\{', '{', card_content)
-                card_content = re.sub(r'\} ?\"', '}', card_content)
-                card_content = re.sub(r'\} ?\]\"', '} ]', card_content)
-                card_content = re.sub(r'\"\[ ?\{', '[ {', card_content)
-                # print(card_content)
-                log.trace(f'card detail content = {card_content}')
-                break
         try:
-            self.card=json.loads(card_content)
+            self.card = json.loads(card_content)
+            if(self.dytype == 1):
+                self.card["origin"] = json.loads(self.card["origin"])
+                self.card["origin_extend_json"] = json.loads(self.card["origin_extend_json"])
         except:
             # if exists(join(curpath,'../log/')
             print('Error while decode card data json')
@@ -1158,39 +1135,40 @@ def analyze_extra(latest: dict, card: dict):
     at["ori"]={}
     if card.get("item"):
         if card["item"].get("at_control"):
-            ats = card["item"]["at_control"]
             if not ats == {}:
                 for a in ats:
                     a_lo = a["location"]
-                    a_le = a["length"]
                     a_ty = a["type"]
+                    a_le = a["length"]-1 if a_ty==2 else a["length"]
+                    
                     at["now"][a_lo]=[a_le, a_ty]
         if card["item"].get("ctrl"):
             ats = card["item"]["ctrl"]
             if not ats == {}:
                 for a in ats:
                     a_lo = a["location"]
-                    a_le = a["length"]
                     a_ty = a["type"]
+                    a_le = a["length"]-1 if a_ty==2 else a["length"]
+                    
                     at["now"][a_lo]=[a_le, a_ty]
 
     if card.get("origin"):
         if card["origin"].get("item"):
             if card["origin"]["item"].get("at_control"):
-                ats = card["origin"]["item"]["at_control"]
+                ats = json.loads(card["origin"]["item"]["at_control"])
                 if not ats == {}:
                     for a in ats:
                         a_lo = a["location"]
-                        a_le = a["length"]
                         a_ty = a["type"]
+                        a_le = a["length"]-1 if a_ty==2 else a["length"]
                         at["ori"][a_lo]=[a_le, a_ty]
             if card["origin"]["item"].get("ctrl"):
                 ats = card["origin"]["item"]["ctrl"]
                 if not ats == {}:
                     for a in ats:
                         a_lo = a["location"]
-                        a_le = a["length"]
                         a_ty = a["type"]
+                        a_le = a["length"]-1 if a_ty==2 else a["length"]
                         at["ori"][a_lo]=[a_le, a_ty]
             
 
