@@ -36,9 +36,19 @@ class Card(object):
 
         try:
             self.card = json.loads(card_content)
+            if self.card.get("item"):
+                if self.card["item"].get("at_control"):
+                    self.card["item"]["at_control"] = json.loads(self.card["item"]["at_control"])
+                if self.card["item"].get("ctrl"):
+                    self.card["item"]["ctrl"] = json.loads(self.card["item"]["ctrl"])
             if(self.dytype == 1):
                 self.card["origin"] = json.loads(self.card["origin"])
                 self.card["origin_extend_json"] = json.loads(self.card["origin_extend_json"])
+                if self.card["origin"].get("item"):
+                    if self.card["origin"]["item"].get("at_control"):
+                        self.card["origin"]["item"]["at_control"] = json.loads(self.card["origin"]["item"]["at_control"])
+                    if self.card["origin"]["item"].get("ctrl"):
+                        self.card["origin"]["item"]["ctrl"] = json.loads(self.card["origin"]["item"]["ctrl"])
         except:
             # if exists(join(curpath,'../log/')
             print('Error while decode card data json')
@@ -1135,6 +1145,7 @@ def analyze_extra(latest: dict, card: dict):
     at["ori"]={}
     if card.get("item"):
         if card["item"].get("at_control"):
+            ats = card["item"]["at_control"]
             if not ats == {}:
                 for a in ats:
                     a_lo = a["location"]
