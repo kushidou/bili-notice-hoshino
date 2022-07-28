@@ -1,5 +1,4 @@
-import json, requests, time, datetime
-from numpy import cumsum
+import json, requests, time, datetime, difflib
 import configparser as cfg
 import os
 from os.path import dirname, join, exists, getmtime
@@ -12,17 +11,19 @@ bili-ctl para1 para2 para3 [...]
 关键词过滤  black-words  uid  add/remove 拼多多 pdd ... 
 查看关键词  black-words  uid  list  
 开奖动态   islucky  uid  true/false
-立即更新    update
+重新加载    reload
+昵称控制    add-nick/del-nick   uid  短昵称
+昵称查询    list-lick   uid
 帮助菜单   help
 *功能性指令只能由机器人管理员操作*"""
 
-
+# 路径配置
 curpath = dirname(__file__)
 watcher_file = join(curpath, 'upperlist.json')
 res_dir = join(curpath,'res/')
 up_dir = join(curpath,'uppers/')
 
-
+# 全局变量
 number = 0
 up_latest = {}
 up_list=[]
@@ -93,6 +94,20 @@ if exists(up_dir + 'list.json'):
                 json.dump({"history":[]}, f, ensure_ascii=False)
     up_list = list(up_group_info.keys())
 
+# 组成昵称查找
+gw_user = {}
+gw_nick = {}
+
+for id in up_group_info:
+    u = up_group_info[id]
+    if u.get("nick"):
+        gw_user[u["uname"]] = {"uid":u["uid"], "nick":u["nick"]}
+        for n in u["nick"]:
+            gw_nick[n] = {"uname":u["uname"], "uid":u["uid"]}
+    else:
+        gw_user[u["uname"]] = {"uid":u["uid"], "nick":[]}
+gw_name_list = gw_user.keys()
+gw_nick_list = gw_nick.keys()
 
 
 async def get_update():
@@ -178,6 +193,7 @@ async def get_update():
             dynamic = drawCard.Card(card)
             if not dynamic.json_decode_result:
                 log.error(f'动态内容解析失败，id={card["desc"]["dynamic_id_str"]}, 详见drawCard日志。')
+                up_latest[uid_str].append(dynamic.dyid)
                 continue
 
             # 更新UP主的昵称
@@ -193,38 +209,41 @@ async def get_update():
                 log.info(f"已设置不分享转发类动态。\n")
                 fai -= 1
                 continue
-            if not dynamic.check_black_words(conf.get('common','global_black_words'), this_up["ad_keys"], this_up["islucky"]):  # 如果触发过滤关键词，则忽视该动态
-                if dynamic.is_realtime(conf.getint('common','available_time')):             # 太久的动态不予发送
-                    # 只解析支持的类型
-                    if dynamic.dytype in available_type or (dynamic.dytype==1 and dynamic.dyorigtype in available_type):
-                        drawBox = drawCard.Box(conf)       # 创建卡片图片的对象
-                        dyimg, dytype = dynamic.draw(drawBox, conf.getboolean('cache', 'dycard_cache'))   # 绘制动态
-                
-                        msg = f"{dynamic.nickname} {dytype}, 点击链接直达：\n https://t.bilibili.com/{dynamic.dyidstr}  \n[CQ:image,file={dyimg}]"
-                        dyinfo = {
-                            "nickname": dynamic.nickname,
-                            "uid":      dynamic.dyid,
-                            "type":     dytype,
-                            "subtype":  dynamic.dyorigtype,
-                            "time":     dynamic.dytime,         # 时间戳，非字符串时间
-                            "pic":      dyimg,
-                            "link":     f'https://t.bilibili.com/{dynamic.dyidstr}',
-                            "sublink":  "",
-                            "group":    this_up["group"]
-                        }
-                        
-                        dynamic_list.append(dyinfo)
-                        suc+=1
+            try:
+                if not dynamic.check_black_words(conf.get('common','global_black_words'), this_up["ad_keys"], this_up["islucky"]):  # 如果触发过滤关键词，则忽视该动态
+                    if dynamic.is_realtime(conf.getint('common','available_time')):             # 太久的动态不予发送
+                        # 只解析支持的类型
+                        if dynamic.dytype in available_type or (dynamic.dytype==1 and dynamic.dyorigtype in available_type):
+                            drawBox = drawCard.Box(conf)       # 创建卡片图片的对象
+                            dyimg, dytype = dynamic.draw(drawBox, conf.getboolean('cache', 'dycard_cache'))   # 绘制动态
+                    
+                            msg = f"{dynamic.nickname} {dytype}, 点击链接直达：\n https://t.bilibili.com/{dynamic.dyidstr}  \n[CQ:image,file={dyimg}]"
+                            dyinfo = {
+                                "nickname": dynamic.nickname,
+                                "uid":      dynamic.dyid,
+                                "type":     dytype,
+                                "subtype":  dynamic.dyorigtype,
+                                "time":     dynamic.dytime,         # 时间戳，非字符串时间
+                                "pic":      dyimg,
+                                "link":     f'https://t.bilibili.com/{dynamic.dyidstr}',
+                                "sublink":  "",
+                                "group":    this_up["group"]
+                            }
+                            
+                            dynamic_list.append(dyinfo)
+                            suc+=1
+                        else:
+                            log.info(f'(type={dynamic.dytype}, subtype={dynamic.dyorigtype}) 未受支持! 🕊🕊🕊 或者设置为不发送\n')
                     else:
-                        log.info(f'(type={dynamic.dytype}, subtype={dynamic.dyorigtype}) 未受支持! 🕊🕊🕊 或者设置为不发送\n')
+                        log.info(f"This dynamic({dynamic.dyid}) is too old: {m2hm(time.time() - dynamic.dytime)} minutes ago\n")
+                        fai -=1
                 else:
-                    log.info(f"This dynamic({dynamic.dyid}) is too old: {m2hm(time.time() - dynamic.dytime)} minutes ago\n")
-                    fai -=1
-            else:
-                log.info(f"({dynamic.dyid})触发过滤词，或者是转发抽奖动态。\n")
-                fai -= 1 
+                    log.info(f"({dynamic.dyid})触发过滤词，或者是转发抽奖动态。\n")
+                    fai -= 1 
 
-            up_latest[uid_str].append(dynamic.dyid)         # (无论成功失败)完成后把动态加入肯德基豪华午餐
+                up_latest[uid_str].append(dynamic.dyid)         # (无论成功失败)完成后把动态加入肯德基豪华午餐
+            except:
+                pass
     with open(up_dir+uid_str+'.json','w', encoding='UTF-8') as f:     # 更新记录文件
             json.dump({"history":up_latest[uid_str]}, f, ensure_ascii=False)
     rst = fai if suc==0 else suc
@@ -363,7 +382,7 @@ def unfollow(uid, group):
     return rst, msg
 
 
-def shell(group, para, right):
+async def shell(group, para, right):
     """类指令的热管理工具
 
     Args:
@@ -372,6 +391,7 @@ def shell(group, para, right):
         right (bool): 权限判断。
     """
     global up_group_info, up_list
+    rst = True
     msg = '指令有误，请检查! "bili-ctl help" 可以查看更多信息'
     try:
         cmd = para[0]
@@ -379,68 +399,24 @@ def shell(group, para, right):
         cmd = "help"
     paranum = len(para)
 
+    log.info(f'--指令控制--  功能:{cmd}, 参数:{para[1:]}, 权限:{right}')
+
     if cmd == "black-words":
-        if paranum >= 3:
-            uid = para[1]
-            fun = para[2]
-            if uid not in up_list:
-                msg = 'UP主未关注,请检查uid!'
-            else:
-                if fun == "list":
-                    uname = up_group_info[uid]["uname"]
-                    msg = f'您已经为 {uname} 设置了以下过滤关键词：\r\n{up_group_info[uid]["ad_keys"]}'
-                elif fun == "add":
-                    if not right:
-                        return False, "你没有权限这么做"
-                    if paranum >3:
-                        keys = para[3:]
-                        try:
-                            up_group_info[uid]["ad_keys"].extend(keys)
-                            with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
-                                json.dump(up_group_info, f, ensure_ascii=False)
-                            msg = f'添加成功.'
-                        except:
-                            msg = f'添加失败'
-                elif fun == "remove":
-                    if not right:
-                        return False, "你没有权限这么做"
-                    if paranum>3:
-                        keys = para[3:]
-                        erkeys=[]
-                        for wd in keys:
-                            try:
-                                up_group_info[uid]["ad_keys"].remove(wd)
-                            except:
-                                erkeys.append(wd)
-                        with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
-                            json.dump(up_group_info, f, ensure_ascii=False)
-                        msg = '移除成功。'
-                        if erkeys:
-                            msg = msg+f'以下关键词移除失败，可能是没有这些关键词:\n{erkeys}'
+        rst, msg = await cmd_blklist(group, para, right)
     elif cmd == "islucky":
-        if not right:
-            return False, "你没有权限这么做"
-        if paranum == 3:
-            uid = para[1]
-            fun = para[2]
-            if uid not in up_list:
-                msg = 'UP主未关注,请检查uid!'
-            else:
-                msg = f'已为 {up_group_info[uid]["uname"]} 更新抽奖开奖动态的设置。'
-                if fun.upper() == "TRUE":
-                    up_group_info[uid]["islucky"] = True
-                elif fun.upper() == "FALSE":
-                    up_group_info[uid]["islucky"] = False
-                else:
-                    msg = "参数错误，请重试。"
-                with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
-                            json.dump(up_group_info, f, ensure_ascii=False)
-    elif cmd.upper() == "UPDATE":
+        rst, msg = await cmd_islucky(group, para, right)
+    elif cmd.upper() == "RELOAD":
         if not right:
             return False, "你没有权限这么做"
         with open(join(up_dir,'list.json'), 'r', encoding='UTF-8') as f:
             up_group_info = json.load(f)
         msg = "信息更新完成!"
+    elif cmd == "add-nick":
+        rst, msg = await cmd_nick(group, para, right, 'add')
+    elif cmd == "del-nick":
+        rst, msg = await cmd_nick(group, para, right, 'del')
+    elif cmd == "list-nick" or cmd == "ls-nick":
+        rst,msg = await cmd_nick(group, para, True, 'list')
 
     elif cmd == "help":
         msg = help_info
@@ -449,7 +425,7 @@ def shell(group, para, right):
     msg = msg.replace('[','')
     msg = msg.replace(']','')
     print(f'bili-ctl return msg: {msg}')
-    return True, msg
+    return rst, msg
 
 
 def get_follow(group:int, level:int=0):
@@ -548,11 +524,140 @@ def get_follow_bygrp(group:str, level:int=0):
         txt += '\r\n'
 
     rst = True if count else False
-    info = txt[0:-2] if count else "您还没有关注任何UP主。"
+    info = txt[0:-2] if count else "还没有关注任何UP主。"
     return rst, info
 
 
+async def guess_who(keywds:str):
+    """利用搜索功能，猜测昵称指代的用户
+        该功能效率和成功率都低，谨慎使用。
+        每个用户增加昵称的配置项，匹配时优先全匹配gw_nick_list，然后模糊匹配gw_name_list，
+        最后利用b站的搜索API进行搜寻，返回第一个结果。
+        匹配结束后，不会保存，请调用另一个接口
 
+    Args:
+        keywds (str): 关键词
+
+    Returns:
+        uid (int):      查询的uid结果，匹配失败=0
+        uname (str):    查询的全名结果，匹配失败=空字符串
+        nick (str):     输入的短昵称，返回原样
+        lev (float):    查询的等级，1表示完全一致，<1表示相似性，用于判断是否加入昵称列表。
+    """
+    uid, who,lev = 0, '', 0.0
+    if keywds in gw_nick_list:
+        who = gw_nick[keywds]["uname"]
+        lev = 1.0
+        uid = gw_nick[keywds]["uid"]
+        log.info(f'GuessUP: 搜索于 1-已有昵称列表, 关键词[{keywds}] ==> {who}({uid}) level=1.0')
+        return uid, who, keywds, lev
+    
+    maybe = difflib.get_close_matches(keywds, gw_name_list)
+    # print(maybe)
+    if maybe:
+        who = maybe[0]
+        lev = max(difflib.SequenceMatcher(None, who, keywds).quick_ratio(), \
+                difflib.SequenceMatcher(None, keywds, who).quick_ratio())
+        lev = float(int(lev*100))/100
+        uid = gw_user[who]["uid"]
+        log.info(f'GuessUP: 搜索于 2-关注列表相似, 关键词[{keywds}] ==> {who}({uid}) level={lev}')
+        return uid, who, keywds, lev
+    
+    else:
+        uid, who = await search_up_in_bili(keywds)
+        if uid:
+            lev = max(difflib.SequenceMatcher(None, who, keywds).quick_ratio(), \
+                    difflib.SequenceMatcher(None, keywds, who).quick_ratio())
+            lev = float(int(lev*100))/100
+            log.info(f'GuessUP: 搜索于 3-B站搜索页, 关键词[{keywds}] ==> {who}({uid}) level={lev}')
+            return uid, who, keywds, lev
+        else:
+            log.info(f'GuessUP: 所有途径搜索失败。关键词[{keywds}] ==> Nothing!')
+            return uid, who, keywds, lev
+
+
+def save_uname_nick(uid:str, uname:str, nick:str):
+    """保存用户昵称
+
+    Args:
+        uid (str): 用户id
+        uname (str): 用户名，没啥用，就二次确认一下
+        nick (str): 要记录的昵称
+
+    Returns:
+        res (str/None):  错误信息,成功为空None
+    """
+    global up_group_info,gw_name_list,gw_nick_list,gw_user,gw_nick
+    # 该昵称是否被人用过
+    if nick in gw_nick_list:
+        if gw_nick[nick]["uname"] == uname:
+            return None
+        else:
+            log.info(f'保存昵称信息：失败，名称冲突。 {nick}已被 {gw_nick[nick]["uname"]}({gw_nick[nick]["uid"]}) 占用，{uname}无法使用。')
+            return f'该昵称已被 {gw_nick[nick]["uname"]}({gw_nick[nick]["uid"]}) 占用'
+
+    if not up_group_info[uid].get("nick"):
+        up_group_info[uid]["nick"] = []
+    up_group_info[uid]["nick"].append(nick)
+    try:
+        with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
+            json.dump(up_group_info, f, ensure_ascii=False)
+    except:
+        up_group_info[uid]["nick"] = nick
+        return "配置文件保存失败"
+    # 更新内存中的配置
+    for id in up_group_info:
+        u = up_group_info[id]
+        if u.get("nick"):
+            gw_user[u["uname"]] = {"uid":u["uid"], "nick":u["nick"]}
+            for n in u["nick"]:
+                gw_nick[n] = {"uname":u["uname"], "uid":u["uid"]}
+        else:
+            gw_user[u["uname"]] = {"uid":u["uid"], "nick":[]}
+    gw_name_list = gw_user.keys()
+    gw_nick_list = gw_nick.keys()
+    log.info(f'保存昵称信息：成功')
+    return None
+
+def del_uname_nick(uid:str, uname:str, nick:str):
+    """删除用户昵称。注意，本功能会验证uid，但不进行用户名验证，遇到不存在的用户名会出错。
+
+    Args:
+        uid (str): 用户id
+        uname (str): 用户名，没啥用，就二次确认一下
+        nick (str): 要记录的昵称
+
+    Returns:
+        res (str/None):  错误信息,成功为空None
+    """
+    global up_group_info,gw_name_list,gw_nick_list,gw_user,gw_nick
+    if nick in gw_nick_list:
+        if uid not in up_list:
+            return "该用户未关注"
+        if gw_nick[nick]["uname"] == uname:
+            up_group_info[uid]["nick"].remove(nick)
+            try:
+                with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
+                    json.dump(up_group_info, f, ensure_ascii=False)
+            except:
+                up_group_info[uid]["nick"] = nick
+                return "配置文件保存失败"
+            # 更新内存中的配置
+            for id in up_group_info:
+                u = up_group_info[id]
+                if u.get("nick"):
+                    gw_user[u["uname"]] = {"uid":u["uid"], "nick":u["nick"]}
+                    for n in u["nick"]:
+                        gw_nick[n] = {"uname":u["uname"], "uid":u["uid"]}
+                else:
+                    gw_user[u["uname"]] = {"uid":u["uid"], "nick":[]}
+            gw_name_list = gw_user.keys()
+            gw_nick_list = gw_nick.keys()
+            return None
+        else:
+            return '该用户无此昵称'
+    else:
+        return "这个昵称未被使用。"
 
 #====================附加功能，外部请勿调用======================
 # 每日清理垃圾，减少文件占用，减少内存占用
@@ -603,12 +708,12 @@ def clean_cache():
 
 def m2hm(t:int):
     ms = t//60
-    t = f'{ms//60}h{ms%60}m' if ms>60 else f'{ms} minutes'
+    t = f'{int(ms//60)}h{int(ms%60)}m' if ms>60 else f'{ms} minutes'
     return t
 
 async def check_plugin_update():
     # 检查代码是否更新。由于现阶段代码会频繁更新，所以添加这个定期检查功能。
-    # version.json内容：{"ver":"0.x.x", "date":"2022-07-01", "desc":"更新了版本检查功能，仅在日志里输出"}
+    # version.json内容：{"ver":"0.x.x", "date":"2022-07-01", "desc":["更新了版本检查功能，仅在日志里输出"]}
     url = 'http://gitee.com/kushidou/bili-notice-hoshino/raw/main/version.json'
     myverpath = join(curpath,'version.json')
     myver = 'old'
@@ -632,7 +737,7 @@ async def check_plugin_update():
         if not newver == myver:
             date = txt["date"]
             desc = txt["desc"].replace("\n", "\n\t\t\t\t\t\t")
-            log.info(f'bili-notice-control插件已更新, 请至github主页拉取最新代码。\n \
+            log.info(f'bili-notice-hoshino插件已更新, 请至github主页拉取最新代码。\n \
                 \t地址:  https://github.com/kushidou/bili-notice-hoshino  \n   \
                 \t当前版本 {myver}, 最新版本号 {newver}, 更新时间{date}\n\
                 \t更新内容:\n\t\t\t\t\t\t{desc}')
@@ -641,3 +746,154 @@ async def check_plugin_update():
         log.error(f'Check update failed! HTTP code = {res.status_code}')
         return
 
+async def search_up_in_bili(keywds:str):
+    """到b站搜索up主，并返回最接近的信息
+
+    Args:
+        keywds (str): 输入的关键词
+
+    Returns:
+        uid (int):  搜索到的uid
+        who (str):  对应的昵称
+    """
+    uid, who = 0, ""
+    try:
+        url = "http://api.bilibili.com/x/web-interface/search/type"
+        para={"search_type":"bili_user", "keyword":keywds}
+        # header = {        # 不删了，以防万一
+        #     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+        #     'Accept-Encoding': 'gzip, deflate',
+        #     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
+        #     'Connection': 'keep-alive',
+        #     'Host': 'api.bilibili.com',
+        #     'Upgrade-Insecure-Requests': '1',
+        #     'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.124 Mobile Safari/537.36 Edg/102.0.1245.44'
+        # }
+        res = requests.get(url=url, params=para)
+    except Exception as e:
+        log.error(f'搜索UP主失败，原因为网络错误：{e}')
+        return uid, who
+    if res.status_code == 200:
+        resj = json.loads(res.text)
+        if not resj["data"]["numResults"] == 0:
+            usr = resj["data"]["result"][0]
+            who = usr["uname"]
+            uid = usr["mid"]
+        else:
+            log.error(f'搜索UP主失败，原因为 没有搜索到有关结果')
+    else:
+        log.error(f'搜索UP主失败，原因为 return code == {res.status_code}')
+    return uid, who
+
+async def cmd_blklist(group, para, right):
+    rst = True
+    msg = ""
+    paranum = len(para)
+    if paranum >= 3:
+        uid = para[1]
+        fun = para[2]
+        if uid not in up_list:
+            msg = 'UP主未关注,请检查uid!'
+        else:
+            if fun == "list":
+                uname = up_group_info[uid]["uname"]
+                msg = f'您已经为 {uname} 设置了以下过滤关键词：\r\n{up_group_info[uid]["ad_keys"]}'
+            elif fun == "add":
+                if not right:
+                    return False, "你没有权限这么做"
+                if paranum >3:
+                    keys = para[3:]
+                    try:
+                        up_group_info[uid]["ad_keys"].extend(keys)
+                        with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
+                            json.dump(up_group_info, f, ensure_ascii=False)
+                        msg = f'添加成功.'
+                    except:
+                        msg = f'添加失败'
+            elif fun == "remove":
+                if not right:
+                    return False, "你没有权限这么做"
+                if paranum>3:
+                    keys = para[3:]
+                    erkeys=[]
+                    for wd in keys:
+                        try:
+                            up_group_info[uid]["ad_keys"].remove(wd)
+                        except:
+                            erkeys.append(wd)
+                    with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
+                        json.dump(up_group_info, f, ensure_ascii=False)
+                    msg = '移除成功。'
+                    if erkeys:
+                        msg = msg+f'以下关键词移除失败，可能是没有这些关键词:\n{erkeys}'
+    else:
+        rst = False
+        msg = "参数有误"
+    return rst,msg
+
+async def cmd_islucky(group, para, right):
+    paranum = len(para)
+    if not right:
+        return False, "你没有权限这么做"
+    if paranum == 3:
+        uid = para[1]
+        fun = para[2]
+        if uid not in up_list:
+            msg = 'UP主未关注,请检查uid!'
+        else:
+            msg = f'已为 {up_group_info[uid]["uname"]} 更新抽奖开奖动态的设置。'
+            if fun.upper() == "TRUE":
+                up_group_info[uid]["islucky"] = True
+            elif fun.upper() == "FALSE":
+                up_group_info[uid]["islucky"] = False
+            else:
+                msg = "参数错误，请重试。"
+            with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
+                        json.dump(up_group_info, f, ensure_ascii=False)
+        return True, msg
+    else:
+        return False, "参数有误"
+
+async def cmd_nick(group, para, right, fun):
+    paranum = len(para)
+    if not right:
+        return False, "你没有权限这么做"
+    if paranum == 3:
+        u=para[1]
+        n=para[2]
+        if u.isdigit():
+            uid = u
+            uname = up_group_info[uid]["uname"]
+        else:
+            uid, uname, _, lev = await guess_who(u)
+            if lev <1:
+                return False, "未找到该用户"
+        if fun == 'add':
+            rst = save_uname_nick(str(uid), uname, n)
+            print(rst)
+            return True, rst if rst else "成功"
+        elif fun == "del":
+            rst = del_uname_nick(str(uid), uname, n)
+            print(rst)
+            return True, rst if rst else "成功"
+    if paranum == 2 and fun == "list":
+        u=para[1]
+        if u.isdigit():
+            uid = u
+            uname = up_group_info[uid]["uname"]
+        else:
+            uid, uname, _, lev = await guess_who(u)
+            if lev <1:
+                return False, "未找到该用户"
+        ruid = gw_user[uname]["uid"]
+        rnick= gw_user[uname]["nick"]
+        if len(rnick):
+            msg = f'{uname}({ruid})的昵称有：\r\n'
+            for n in rnick:
+                msg+=f'{n}\r\n'
+        else:
+            msg = f'{uname}({ruid}) 还没有昵称，请设置。\r\n'
+        return True,msg[0:-2]
+        
+    else:
+        return False, "参数有误"
