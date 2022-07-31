@@ -1166,7 +1166,7 @@ def analyze_extra(latest: dict, card: dict):
     if card.get("origin"):
         if card["origin"].get("item"):
             if card["origin"]["item"].get("at_control"):
-                ats = json.loads(card["origin"]["item"]["at_control"])
+                ats = card["origin"]["item"]["at_control"]
                 if not ats == {}:
                     for a in ats:
                         a_lo = a["location"]

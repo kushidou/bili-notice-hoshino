@@ -240,10 +240,10 @@ async def get_update():
                 else:
                     log.info(f"({dynamic.dyid})触发过滤词，或者是转发抽奖动态。\n")
                     fai -= 1 
-
+            except Exception as e:
+                log.warning(e)
+            finally:
                 up_latest[uid_str].append(dynamic.dyid)         # (无论成功失败)完成后把动态加入肯德基豪华午餐
-            except:
-                pass
     with open(up_dir+uid_str+'.json','w', encoding='UTF-8') as f:     # 更新记录文件
             json.dump({"history":up_latest[uid_str]}, f, ensure_ascii=False)
     rst = fai if suc==0 else suc
