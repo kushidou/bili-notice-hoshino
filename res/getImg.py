@@ -33,8 +33,8 @@ ico_share   = {'file':'share.png',      'size':(40,40)        }
 ico_comment = {'file':'comment.png',    'size':(40,40)        }
 ico_link    = {'file':'link.png',       'size':(13,15)        }
 ico_luck    = {'file':'luck.png',       'size':(17,16)        }
-ico_persional = {'file':'lighting_yellow.png', 'size':(64,64) }
-ico_group   = {'file':'lighting_blue.png',     'size':(64,64) }
+ico_persional = {'file':'persional.png', 'size':(64,64) }
+ico_group   = {'file':'group.png',     'size':(64,64) }
 ico_danmuku = {'file':'danmuku.png',    'size':(40,40)        }
 ico_playsec = {'file':'play_sec.png',   'size':(40,40)        }
 
@@ -75,7 +75,7 @@ def get_ico(name, em=0):
     svg_path = join(curpath, icos[name]['file'])
     # with open(svg_path,'r') as f:
     #     text = f.read()
-    img = Image.open(svg_path, mode='RGBA')
+    img = Image.open(svg_path)
     # 配置图片大小，如果没有传入大小参数，则使用默认大小
     if em == 0:
         size_width = icos[name]['size'][0]
@@ -89,7 +89,7 @@ def get_ico(name, em=0):
     # svg_png = svg.svg2png(bytestring=text)
     # SVG对象传递给PIL对象，返回该对象和透明图层  !! 2022-08-08 所有SVG图像转换为PNG图像。
     # img_png = Image.open(BytesIO(svg_png)).convert('RGBA')
-    img_png = img.resize((size_width, size_height), Image.ANTIALIAS)
+    img_png = img.resize((int(size_width), int(size_height)), Image.ANTIALIAS).convert('RGBA')
     # img_png.save(join(curpath,'test_ico_png_full.png'))
 
 
