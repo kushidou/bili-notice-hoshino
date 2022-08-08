@@ -1,11 +1,10 @@
-from multiprocessing.dummy import current_process
 import os
 import requests
 import base64
 from io import BytesIO
 from os.path import dirname, join, exists
 from PIL import Image, ImageDraw
-import cairosvg as svg
+# import cairosvg as svg
 from loguru import logger as log
 
 '''
@@ -19,15 +18,25 @@ from loguru import logger as log
 '''
 
 # 各图标的文件和默认大小信息
-ico_like    = {'file':'like.svg',       'size':(40,40)        }
-ico_share   = {'file':'share.svg',      'size':(40,40)        }
-ico_comment = {'file':'comment.svg',    'size':(40,40)        }
-ico_link    = {'file':'link.svg',       'size':(13,15)        }
-ico_luck    = {'file':'luck.svg',       'size':(17,16)        }
-ico_persional = {'file':'lighting_yellow.svg', 'size':(64,64) }
-ico_group   = {'file':'lighting_blue.svg',     'size':(64,64) }
-ico_danmuku = {'file':'danmuku.svg',    'size':(40,40)        }
-ico_playsec = {'file':'play_sec.svg',   'size':(40,40)        }
+# ico_like    = {'file':'like.svg',       'size':(40,40)        }
+# ico_share   = {'file':'share.svg',      'size':(40,40)        }
+# ico_comment = {'file':'comment.svg',    'size':(40,40)        }
+# ico_link    = {'file':'link.svg',       'size':(13,15)        }
+# ico_luck    = {'file':'luck.svg',       'size':(17,16)        }
+# ico_persional = {'file':'lighting_yellow.svg', 'size':(64,64) }
+# ico_group   = {'file':'lighting_blue.svg',     'size':(64,64) }
+# ico_danmuku = {'file':'danmuku.svg',    'size':(40,40)        }
+# ico_playsec = {'file':'play_sec.svg',   'size':(40,40)        }
+
+ico_like    = {'file':'like.png',       'size':(40,40)        }
+ico_share   = {'file':'share.png',      'size':(40,40)        }
+ico_comment = {'file':'comment.png',    'size':(40,40)        }
+ico_link    = {'file':'link.png',       'size':(13,15)        }
+ico_luck    = {'file':'luck.png',       'size':(17,16)        }
+ico_persional = {'file':'lighting_yellow.png', 'size':(64,64) }
+ico_group   = {'file':'lighting_blue.png',     'size':(64,64) }
+ico_danmuku = {'file':'danmuku.png',    'size':(40,40)        }
+ico_playsec = {'file':'play_sec.png',   'size':(40,40)        }
 
 # 集合成一个字典
 icos={  'like':ico_like,
@@ -62,10 +71,11 @@ def get_ico(name, em=0):
             return img_png
         log.warning(f'Get_ICO: {name} No such file!')
         return None
-    # 读取svg文件
+    # 读取svg文件   !! 2022-08-08 所有SVG图像转换为PNG图像。
     svg_path = join(curpath, icos[name]['file'])
-    with open(svg_path,'r') as f:
-        text = f.read()
+    # with open(svg_path,'r') as f:
+    #     text = f.read()
+    img = Image.open(svg_path, mode='RGBA')
     # 配置图片大小，如果没有传入大小参数，则使用默认大小
     if em == 0:
         size_width = icos[name]['size'][0]
@@ -73,12 +83,13 @@ def get_ico(name, em=0):
     else:
         size_width = em
         size_height = size_width * icos[name]['size'][1] / icos[name]['size'][0]
-    # 替换svg中大小的关键字，然后渲染图片
-    text=text.replace('$(SVG_WIDTH)', str(size_width))
-    text=text.replace('$(SVG_HEIGHT)', str(size_height))
-    svg_png = svg.svg2png(bytestring=text)
-    # SVG对象传递给PIL对象，返回该对象和透明图层
-    img_png = Image.open(BytesIO(svg_png)).convert('RGBA')
+    # 替换svg中大小的关键字，然后渲染图片  !! 2022-08-08 所有SVG图像转换为PNG图像。
+    # text=text.replace('$(SVG_WIDTH)', str(size_width))
+    # text=text.replace('$(SVG_HEIGHT)', str(size_height))
+    # svg_png = svg.svg2png(bytestring=text)
+    # SVG对象传递给PIL对象，返回该对象和透明图层  !! 2022-08-08 所有SVG图像转换为PNG图像。
+    # img_png = Image.open(BytesIO(svg_png)).convert('RGBA')
+    img_png = img.resize((size_width, size_height), Image.ANTIALIAS)
     # img_png.save(join(curpath,'test_ico_png_full.png'))
 
 

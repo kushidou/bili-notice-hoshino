@@ -140,3 +140,4 @@ config.ini
 bili_notice_test.py
 *_raw.json
 *_rep.json
+convent_svg2png.py

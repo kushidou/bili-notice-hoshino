@@ -609,7 +609,7 @@ class Box(object):
         font = ImageFont.truetype(self.msyh, 14)
         fulltextcard = []
 
-        while True:
+        while True and len(text):
             ch = text[0]
             # 强制换行或者遇到换行符
             if ch == '\n' or point >= (self.width -88 -24 - (24 + 22)):     # <== 自然换行的界定：宽度上，卡片左边去掉88，右边去掉24，还有字符宽度最高22，
