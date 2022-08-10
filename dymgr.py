@@ -185,6 +185,8 @@ async def get_update():
         dylist = json.loads(res.text)
         if not dylist["code"] == 0:
             return -1, []
+        if "cards" not in dylist["data"].keys():
+            return -1, []
 
         for card in dylist["data"]["cards"]:
             if int(card["desc"]["dynamic_id_str"]) in up_latest[up_list[number]]:
