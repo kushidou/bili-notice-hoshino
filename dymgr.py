@@ -24,9 +24,9 @@ res_dir = join(curpath,'res/')
 up_dir = join(curpath,'uppers/')
 
 # 全局变量
-number = 0
-up_latest = {}
-up_list=[]
+number = 0              # 轮询的编号
+up_latest = {}          # 各个up主及其动态记录
+up_list=[]              # up主列表
 cache_clean_date = 0
 
 # 读取配置文件
@@ -374,7 +374,7 @@ def unfollow(uid, group):
                     up_group_info[uid]["group"].remove(group)
                     with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:
                         json.dump(up_group_info, f, ensure_ascii=False)
-                    del up_latest[uid]
+                    # del up_latest[uid]    # 出错，取关导致up主被动态历史的列表清除，实际上不关注的人也会进这个列表
                 except:
                     log.info('取关失败,无法修改list文件')
                     return False, "UP主文件修改失败，未知错误，请手动检查配置文件。"
