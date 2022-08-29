@@ -6,7 +6,11 @@
 [![Version](https://img.shields.io/badge/Beta-v0.b.5.1x-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
 [![Q群](https://img.shields.io/badge/QQ%E7%BE%A4-655742099-yellow)](https://jq.qq.com/?_wv=1027&k=CXGsKj1P)
 
-## Desc 简介
+> __重要修复__
+> 
+> 2022年8月24日B站更新了搜索API，需要cookies验证。请更新最新代码，否则“昵称关注”功能不可用。
+
+## 简介
 
 用于视奸指定up主，并将其最新的动态信息推送到申请的群里。
 

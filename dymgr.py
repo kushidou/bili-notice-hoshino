@@ -759,6 +759,15 @@ async def search_up_in_bili(keywds:str):
         who (str):  对应的昵称
     """
     uid, who = 0, ""
+    # 2022-08-29 B站在8-24更新了API，增加了cookies验证，否则狂报412错误。使用游客cookies来解决。
+    try:
+        # 从bilibili.com获得一条cookies
+        url = "http://www.bilibili.com"
+        request = requests.get(url)
+        cookies = request.cookies
+    except Exception as e:
+        log.error(f'搜索UP主失败，原因为无法获取小饼干，code={e}')
+        return uid, who
     try:
         url = "http://api.bilibili.com/x/web-interface/search/type"
         para={"search_type":"bili_user", "keyword":keywds}
@@ -771,7 +780,7 @@ async def search_up_in_bili(keywds:str):
         #     'Upgrade-Insecure-Requests': '1',
         #     'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.124 Mobile Safari/537.36 Edg/102.0.1245.44'
         # }
-        res = requests.get(url=url, params=para)
+        res = requests.get(url=url, params=para, cookies=cookies)
     except Exception as e:
         log.error(f'搜索UP主失败，原因为网络错误：{e}')
         return uid, who
