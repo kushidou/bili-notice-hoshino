@@ -102,7 +102,7 @@ class Card(object):
                 log.info(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
                 break
         if islucky == True:
-            if self.dytype == 1:
+            if self.dytype == 1 or conf.getboolean('common','sharelucky'):
                 if "互动抽奖" in str(self.card["origin"]):
                     log.info('动态为转发的抽奖内容，即将屏蔽。')
                     ret = True
@@ -247,6 +247,10 @@ class Card(object):
         base64_img = 'base64://' + base64.b64encode(bio.getvalue()).decode()
         log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.\n')
 
+        dy_flag = conf.getboolean('cache', 'dycard_cache')
+        if dy_flag:
+            save_Image(img, 'dynamic_card', f'{self.uid}_{self.dyid}_{self.dytype}_{self.nickname}.png')
+
         return base64_img, ret_txt
         
 
@@ -256,7 +260,7 @@ class Card(object):
         # 先按类型绘制原始动态,贴身灰色背景，然后绘制当前动态（纯文字），拼接，最后返回完整图片
         log.info('Type = Repost')
         oritype = self.latest["desc"]["orig_type"]
-        if oritype in [2,4,8,64,256]:
+        if oritype in [2,4,8,64,256,2048]:
             orname =content["origin_user"]["info"]["uname"]
             orface = get_Image(Type = "face", url=content["origin_user"]["info"]["face"])
         elif oritype in [512]:
@@ -278,6 +282,8 @@ class Card(object):
             img_ori = self.drawAudio(content["origin"], box, is_rep=True)
         elif oritype == 512: # 转发番剧剧集
             img_ori = self.drawBangumi(content["origin"], box, is_rep=True)
+        elif oritype == 2048:   # 转发h5活动
+            img_ori = self.drawH5Event(content["origin"], box, is_rep=True)
         
 
         img = box.repost(orface, orname, img_now, img_ori)
@@ -370,7 +376,13 @@ class Card(object):
 
     # Type=2048 H5活动      H5Event
     def drawH5Event(self, content, box, is_rep=False):
-        pass
+        h5title = content["sketch"]["title"]
+        h5desc  = content["sketch"]["desc_text"]
+        h5cover = get_Image(Type="cover", url=content["sketch"]["cover_url"])
+        desc    = content["vest"]["content"]
+
+        img = box.h5( h5title, h5desc, h5cover, desc, ex=self.extra, is_reposted=is_rep)
+        return img
 
     # Type=2049 霹雳霹雳慢话
     def drawComic(self, content, box, is_rep=False):
@@ -851,10 +863,10 @@ class Box(object):
         point,line = offsetx,0
         for n,ch in enumerate(title):
             chnxt = title[n+1] if n+1<len(title) else None
-            draw.text((point, offsety + line*19), ch, fill=color_title, font=fontbig)
             if line>0 and point+22 > maxx and len(title)-n>1:
                 draw.text((point, offsety+line*19), '...', fill=color_title, font=fontbig)
                 break
+            draw.text((point, offsety + line*19), ch, fill=color_title, font=fontbig)
             if point + 16 > maxx:
                 point = offsetx
                 line = line+1
@@ -1024,20 +1036,20 @@ class Box(object):
 
 
     # ====================box.bangumi====================
-    # 番剧发布和分享的卡片，未确认
+    # 番剧发布和分享的卡片
     # return 图片对象，高
     def bangumi(self, sptitle, spcover, eptitle, epcover, epplay, epdanmu, is_reposted=False):
         card_point = 0
 
         # 视频小卡片，封面203x127，贴合小边缩放、裁切；标题最多两行，简介最多两行，
         # 创建基础卡片
-        vimg = Image.new('RGBA', (self.width-88 - 24, 129), (0,0,0,0))
+        vimg = Image.new('RGBA', (self.width-88 - 24, 129), (255,255,255,255))
         draw = ImageDraw.Draw(vimg)
         fontbig = ImageFont.truetype(self.msyh, 14)
         fontsmall=ImageFont.truetype(self.msyh, 12)
         color_title= (33,33,33,255)
         color_info = (153, 153, 153, 255)
-        draw.rounded_rectangle(((0,0),(vimg.size[0]-1,vimg.size[1]-1)), radius=4, fill=(0,0,0,0), outline=(color_info),width=1)
+        draw.rounded_rectangle(((0,0),(vimg.size[0]-1,vimg.size[1]-1)), radius=4, fill=(255,255,255,255), outline=(color_info),width=1)
 
         # 放置封面
         s =epcover.size
@@ -1051,22 +1063,26 @@ class Box(object):
             s1 = int(s[0] * 127/203 /2)
             epcover = epcover.crop((0,s[1]/2-s1 ,s[0]-1,s[1]/2+s1 ))
             epcover_stand = epcover.resize((203,127), Image.ANTIALIAS)
-        print(f'size of epcover={s}, size of epcover_stand={epcover_stand.size}')
+        log.info(f'size of epcover={s}, size of epcover_stand={epcover_stand.size}')
         mask=Image.new('RGBA', (203,127), (0,0,0,0))    
         maskdr = ImageDraw.Draw(mask)
         maskdr.rounded_rectangle((0,0,202,126), radius=4, fill=(0,0,0,255))
         # print(f'size of mask={mask.size}')
         vimg.paste(epcover_stand, (1,1),mask)
+
+        # 封面上放一个番剧的字符
+        draw.rounded_rectangle(((133,8),(175,26)), radius=2, fill=(251, 114, 153,255))
+        draw.text((140,10), text=("番 剧"), fill=(255,255,255,255),font=fontsmall)
         # 写标题
         offsetx, offsety = 203+12, 9+2
         maxx = vimg.size[0]-16
         point,line = offsetx,0
         for n,ch in enumerate(eptitle):
             chnxt = eptitle[n+1] if n+1<len(eptitle) else None
-            draw.text((point, offsety + line*19), ch, fill=color_title, font=fontbig)
             if line>0 and point+22 > maxx and len(eptitle)-n>1:
                 draw.text((point, offsety+line*19), '...', fill=color_title, font=fontbig)
                 break
+            draw.text((point, offsety + line*19), ch, fill=color_title, font=fontbig)
             if point + 16 > maxx:
                 point = offsetx
                 line = line+1
@@ -1088,10 +1104,68 @@ class Box(object):
         return img
 
     # ====================box.h5====================
-    # h5活动页卡片，未确认
+    # h5活动页卡片
+    # 输入：h5活动的标题简介封面、附带文字和特殊字符。
     # return 图片对象，高
-    def h5(a, is_reposted=False):
-        pass
+    def h5(self, h5title:str, h5desc:str, h5cover:dict, desc:str=None, ex:dict=None, is_reposted=False):
+        
+        #bgcolor = (244, 245, 247,255) if is_reposted else (255,255,255,255)
+        fontbig = ImageFont.truetype(self.msyh, 14)
+        fontsmall=ImageFont.truetype(self.msyh, 12)
+        color_title= (33,33,33,255)
+        color_desc = (102, 102, 102, 255)
+
+        
+        color_info = (153, 153, 153, 255)
+        # 文字部分
+        timg = self.text(desc, ex, is_reposted=is_reposted)
+        # 主体部分画个框
+        himg = Image.new("RGBA", (580,80), (0,0,0,0))
+        himgdr = ImageDraw.Draw(himg)
+        himgdr.rounded_rectangle(((0,0),(himg.size[0]-1,himg.size[1]-1)), radius=4,   \
+            fill=(255,255,255,255), outline=(color_info),width=1)
+        # 封面,可能不是正方形，取短边缩放到78x78，然后裁剪
+        s=h5cover.size
+        if s[0] == s[1]:
+            cover = h5cover.resize((78,78),Image.ANTIALIAS)
+        elif s[0]>s[1]:
+            cover = h5cover.crop(((s[0]-s[1])/2, 0, (s[0]+s[1])/2, s[1])).resize((78,78), Image.ANTIALIAS)
+        else:
+            cover = h5cover.crop((0, (s[1]-s[0])/2, s[0], (s[0]+s[1])/2)).resize((78,78), Image.ANTIALIAS)
+        mask=Image.new('RGBA', (78,78), (0,0,0,0))    
+        maskdr = ImageDraw.Draw(mask)
+        maskdr.rounded_rectangle((0,0,78,78), radius=4, fill=(0,0,0,255))
+        log.debug(f'h5cover, size=({h5cover.size}) -> (78,78)')
+        # print(f'size of mask={mask.size}')
+        himg.paste(cover, (1,1),mask)
+        # 标题
+        offsetx, offsety, maxx = 80+15, 15+3, 580 - 15
+        point = offsetx
+        for n,ch in enumerate(h5title):
+            chnxt = h5title[n+1] if n+1<len(h5title) else None
+            if point + 22 > maxx:
+                himgdr.text((point, offsety), '...', fill=color_title, font=fontbig)
+                break
+            himgdr.text((point, offsety), ch, fill=color_title, font=fontbig)
+            point += chgap(ch, chnxt, 8)
+        # 简介，仅一行
+        offsetx, offsety, maxx = 80+15, 15+30+4, 580 - 15
+        point = offsetx
+        for n,ch in enumerate(h5desc):
+            chnxt = h5title[n+1] if n+1<len(h5title) else None
+            if point + 22 > maxx:
+                himgdr.text((point, offsety), '...', fill=color_desc, font=fontsmall)
+                break
+            himgdr.text((point, offsety), ch, fill=color_desc, font=fontsmall)
+            point += chgap(ch, chnxt, 6)
+        # 拼接
+
+        fullsize = (580, timg.size[1] + 8 + himg.size[1])
+        img = Image.new('RGBA', fullsize, (0,0,0,0))
+        img.paste(timg, (0,0), timg)
+        img.paste(himg, (0, img.size[1]-80), himg)
+        return img
+
 
 
 

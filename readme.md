@@ -3,12 +3,14 @@
 [![Lisence](https://img.shields.io/github/license/kushidou/bili-notice-hoshino)]((LICENSE))
 ![PythonVer](https://img.shields.io/badge/python-3.8+-blue)
 [![HoshinoVer](https://img.shields.io/badge/Hoshino-v2.0.0%2B-green)](https://github.com/Ice-Cirno/HoshinoBot)
-[![Version](https://img.shields.io/badge/Beta-v0.b.5.1x-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
+[![Version](https://img.shields.io/badge/Beta-v0.b.7.x-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
 [![Q群](https://img.shields.io/badge/QQ%E7%BE%A4-655742099-yellow)](https://jq.qq.com/?_wv=1027&k=CXGsKj1P)
 
 > __重要修复__
 > 
 > 2022年8月24日B站更新了搜索API，需要cookies验证。请更新最新代码，否则“昵称关注”功能不可用。
+
+*版本更新日志请查看[wiki页面](https://github.com/kushidou/bili-notice-hoshino/wiki/%E6%9B%B4%E6%96%B0%E6%97%A5%E5%BF%97)*
 
 ## 简介
 
@@ -43,6 +45,7 @@
 > - 协议、业务分离设计，方便不同机器人平台进行移植 [接口文档](./api.md)
 
 
+
 ## 部署
 
 详细的部署步骤，及Windows平台部署的注意事项，请访问本项目[Wiki页📕](https://github.com/kushidou/bili-notice-hoshino/wiki/%E9%83%A8%E7%BD%B2%E6%8F%92%E4%BB%B6)
@@ -60,6 +63,7 @@
 <details>
   <summary>config配置方法</summary>
 <a herf="https://github.com/kushidou/bili-notice-hoshino/wiki/config%E9%85%8D%E7%BD%AE">config配置-wiki</a>
+[config配置-wiki](https://github.com/kushidou/bili-notice-hoshino/wiki/config%E9%85%8D%E7%BD%AE)
 </details>
 
 

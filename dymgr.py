@@ -50,7 +50,9 @@ else:
         4,      # text
         8,      # video
         64,     # article
-        256     # audio
+        256,    # audio
+        512,    # bangumi
+        2048    # H5event
     ]
 
 log_level = conf.get('common','log_level').upper()
@@ -218,8 +220,7 @@ async def get_update():
                         if dynamic.dytype in available_type or (dynamic.dytype==1 and dynamic.dyorigtype in available_type):
                             drawBox = drawCard.Box(conf)       # 创建卡片图片的对象
                             dyimg, dytype = dynamic.draw(drawBox, conf.getboolean('cache', 'dycard_cache'))   # 绘制动态
-                    
-                            msg = f"{dynamic.nickname} {dytype}, 点击链接直达：\n https://t.bilibili.com/{dynamic.dyidstr}  \n[CQ:image,file={dyimg}]"
+                            # msg = f"{dynamic.nickname} {dytype}, 点击链接直达：\n https://t.bilibili.com/{dynamic.dyidstr}  \n[CQ:image,file={dyimg}]"
                             dyinfo = {
                                 "nickname": dynamic.nickname,
                                 "uid":      dynamic.dyid,
@@ -716,7 +717,13 @@ def m2hm(t:int):
 async def check_plugin_update():
     # 检查代码是否更新。由于现阶段代码会频繁更新，所以添加这个定期检查功能。
     # version.json内容：{"ver":"0.x.x", "date":"2022-07-01", "desc":["更新了版本检查功能，仅在日志里输出"]}
-    url = 'http://gitee.com/kushidou/bili-notice-hoshino/raw/main/version.json'
+    way = conf.getint('common','if_check_update')
+    if way == 1:
+        url = 'http://gitee.com/kushidou/bili-notice-hoshino/raw/main/version.json'
+    elif way == 2:
+        url = 'http://github.com/kushidou/bili-notice-hoshino/raw/main/version.json'
+    else:
+        return
     myverpath = join(curpath,'version.json')
     myver = 'old'
     # 获取本地版本。不存在version文件则视为极旧版本

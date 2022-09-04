@@ -1,4 +1,5 @@
 import time, os
+from os.path import exists, join
 from loguru import logger as log
 import configparser as cfg
 from . import dymgr
@@ -14,10 +15,17 @@ sv=Service(
     enable_on_default=True
 )
 curpath = os.path.dirname(__file__)
-conf = cfg.ConfigParser()
-conf.read(os.path.join(curpath, 'config.ini'), encoding='utf-8')
+# 读取配置文件
+if not exists(join(curpath, 'config.ini')):
+    try:
+        os.rename(join(curpath, 'config_example.ini'),join(curpath, 'config.ini'))
+    except:
+        print("\r\n\033[1;41m[Error]\033[0m\tBili-notice:\tCannot Find config.ini or config_example.ini !!!")
+conf = cfg.ConfigParser(allow_no_value=True)
+conf.read(join(curpath, 'config.ini'), encoding='utf-8')
 auth_follow = conf.get('authority','follow')
 auth_cmd = conf.get('authority','cmd')
+poll_time = conf.get('common','poll_time')
 
 fo_nick = {}
 '''
@@ -39,7 +47,7 @@ fo_nick={
 # 功能：轮询所有up主，有更新就发布
 # 核心：dymgr.get_update()
 # 返回结果为轮询结果(bool)、动态内容（list）
-@sv.scheduled_job('interval', seconds=10)       # 时间可以按需调整，监视的up多就短一点。但是不能太短，至少5s吧，防止被屏蔽
+@sv.scheduled_job('interval', seconds=int(poll_time))       # 时间可以按需调整，监视的up多就短一点。但是不能太短，至少5s吧，防止被屏蔽
 async def bili_watch():
     global fo_nick
     rst, dylist = await dymgr.get_update()
