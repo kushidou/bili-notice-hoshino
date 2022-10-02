@@ -1260,11 +1260,19 @@ def analyze_extra(latest: dict, card: dict):
 
     # #话题蓝色字体
     if latest["display"].get("topic_info"):
-        topics = latest["display"]["topic_info"]["topic_details"]
-        for t in topics:
-            t_name=t["topic_name"]
-            t_len =len(t_name)
-            topic[t_name]=t_len
+        # 既有topic或者新topic
+        if latest["display"]["topic_info"].get("topic_details"):
+            topics = latest["display"]["topic_info"]["topic_details"]
+            for t in topics:
+                t_name=t["topic_name"]
+                t_len =len(t_name)
+                topic[t_name]=t_len
+        # 新topic是独立成行的，那么就直接抛弃吧
+        # if latest["display"]["topic_info"].get("new_topic"):
+        #     topics = latest["display"]["topic_info"]["new_topic"]
+        #     t_name=topics["name"]
+        #     t_len =len(t_name)
+        #     topic[t_name]=t_len
     if latest["display"].get("origin"):
         if latest["display"]["origin"].get("topic_info"):
             if latest["display"]["origin"]["topic_info"].get("topic_details"):

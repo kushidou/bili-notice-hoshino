@@ -178,6 +178,7 @@ async def get_update():
      
     if this_up["watch"]:
         uid_str = up_list[number]
+        print(f'[Debug] Start getting ID={uid_str}')
         try:
             res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
         except:
@@ -273,6 +274,14 @@ def follow(uid, group):
 
     if uid not in up_list:  # 从未添加过
         try:
+            try:
+                # 从bilibili.com获得一条cookies
+                url = "https://www.bilibili.com"
+                request = requests.get(url)
+                cookies = request.cookies
+            except Exception as e:
+                log.error(f'搜索UP主失败，原因为无法获取小饼干，code={e}')
+                cookies=None
             para={"mid":str(uid)}
             header = {
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
@@ -283,7 +292,10 @@ def follow(uid, group):
                 'Upgrade-Insecure-Requests': '1',
                 'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.124 Mobile Safari/537.36 Edg/102.0.1245.44'
             }
-            res = requests.get(url=f'http://api.bilibili.com/x/space/acc/info', params=para, headers=header)
+            if cookies:
+                res = requests.get(url=f'http://api.bilibili.com/x/space/acc/info', params=para, headers=header, cookies=cookies)
+            else:
+                res = requests.get(url=f'http://api.bilibili.com/x/space/acc/info', params=para, headers=header)
         except:
             msg="网络出错了，请稍后再试~"
             log.info('关注失败，网络错误')
@@ -769,14 +781,14 @@ async def search_up_in_bili(keywds:str):
     # 2022-08-29 B站在8-24更新了API，增加了cookies验证，否则狂报412错误。使用游客cookies来解决。
     try:
         # 从bilibili.com获得一条cookies
-        url = "http://www.bilibili.com"
+        url = "https://www.bilibili.com"
         request = requests.get(url)
         cookies = request.cookies
     except Exception as e:
         log.error(f'搜索UP主失败，原因为无法获取小饼干，code={e}')
         return uid, who
     try:
-        url = "http://api.bilibili.com/x/web-interface/search/type"
+        url = "https://api.bilibili.com/x/web-interface/search/type"
         para={"search_type":"bili_user", "keyword":keywds}
         # header = {        # 不删了，以防万一
         #     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
