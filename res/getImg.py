@@ -99,7 +99,13 @@ def get_ico(name, em=0):
 def get_Image(Type, url=None, md5=None, path=None):
     curpath = join(cur,'cache')
     if url:
-        filename = url.split('/')[-1]
+        if "?" in url:
+            # 处理url中的参数 2022-12-29
+            filename = url.split('/')[-1].split("?")[0]
+        else:
+            filename = url.split('/')[-1]
+
+        # filename = url_n.split('/')[-1]
 
         path_url = join(join(curpath, Type),filename)
         if exists(path_url):
@@ -114,7 +120,7 @@ def get_Image(Type, url=None, md5=None, path=None):
         dirpath = join(curpath, Type)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath)
-        path_url = join(dirpath, url.split('/')[-1])
+        path_url = join(dirpath, filename)
         print(path_url)
 
         
