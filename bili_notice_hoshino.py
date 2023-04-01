@@ -1,10 +1,18 @@
 import time, os
 from os.path import exists, join
-from loguru import logger as log
+# from loguru import logger as log
 import configparser as cfg
 from . import dymgr
 import hoshino
 from hoshino import Service, priv, get_bot
+
+
+helpinfo='''
+【b站动态监视器】
+可以发布关注的up主哦。
+发送[ bili-ctl help ]查看详细使用方式。
+
+'''
 
 # bot服务初始化
 sv=Service(
@@ -12,7 +20,8 @@ sv=Service(
     use_priv = priv.NORMAL,
     manage_priv = priv.ADMIN,
     visible=True,
-    enable_on_default=True
+    enable_on_default=True,
+    help_=helpinfo
 )
 curpath = os.path.dirname(__file__)
 # 读取配置文件
@@ -165,7 +174,7 @@ async def bili_remove(bot, ev):
             await bot.send(ev, "你没有权限这么做")
             return
     keys = ev.message.extract_plain_text()
-    log.info(f'收到取关命令:UID={keys}, from {ev.group_id}')
+    sv.logger.info(f'收到取关命令:UID={keys}, from {ev.group_id}')
     uid, uname, lev = await get_uid(keys)
     if lev == 1.0:
         _, res = dymgr.unfollow(str(uid), ev.group_id)

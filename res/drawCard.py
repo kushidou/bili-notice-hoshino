@@ -63,7 +63,7 @@ class Card(object):
         if not self.dyid == int(self.dyidstr):
             self.dyid = int(self.dyidstr)
         self.extra = {} # 各种变蓝文字的信息
-        log.trace(f'Object decode finish. Name={self.nickname}, Type={int(self.dytype)}')
+        log.info(f'Object decode finish. Name={self.nickname}, Type={int(self.dytype)}')
         self.json_decode_result=True
 
         
@@ -150,9 +150,11 @@ class Card(object):
         # 制作昵称  == nickimg ==
         nickname = self.latest["desc"]["user_profile"]["info"]["uname"]
         isVIP    = True if (self.latest["desc"]["user_profile"]["vip"]["vipType"] == 2) else False
+        ncolorHex= self.latest["desc"]["user_profile"]["vip"]["nickname_color"]
+        nickcolor= (int(ncolorHex[1:3],16), int(ncolorHex[3:5],16), int(ncolorHex[5:7],16), 255)
         pubtime  = time.strftime("%y-%m-%d %H:%M", time.localtime(float(self.dytime)))
-        nickimg = box.nickname(nick=nickname, time=pubtime, isBigVIP=isVIP)
-        log.info(f'Name&Time Box: nickname={nickname}, color={"pink" if isVIP else "black"}, time="{pubtime}"({self.dytime});BoxSize={nickimg.size}')
+        nickimg = box.nickname(nick=nickname, time=pubtime, isBigVIP=isVIP, ncolor=nickcolor)
+        log.info(f'Name&Time Box: nickname={nickname}, color={"vipColor" if isVIP else "black"}, time="{pubtime}"({self.dytime});BoxSize={nickimg.size}')
 
         #制作一键三连   == bottom ==
         sharenum   = self.latest["desc"]["repost"]
@@ -473,13 +475,14 @@ class Box(object):
     # 4 -> 16(nickname) -> 4 + 4 + 3 -> 12(time) -> 3
     # return 图片对象
     # offset 88,27
-    def nickname(self, nick, time, isBigVIP=False):
+    def nickname(self, nick, time, isBigVIP=False, ncolor=(251, 114, 153, 255)):
         ts=(self.width - 88, 46)        # target size
         img = Image.new('RGBA', ts, (255,255,255,255))
         draw = ImageDraw.Draw(img)
         font = ImageFont.truetype(self.msyh, self.fontsize_large)
 
-        nick_color = (251, 114, 153, 255) if isBigVIP else (32,32,32,255)
+        nick_color = ncolor if isBigVIP else (32,32,32,255)
+        print(f'get nick_color={nick_color}')
         draw.text((0,3), nick, fill=nick_color,font=font)
         
         font = ImageFont.truetype(self.msyh,self.fontsize_small)

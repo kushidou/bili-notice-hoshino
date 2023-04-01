@@ -178,7 +178,7 @@ async def get_update():
      
     if this_up["watch"]:
         uid_str = up_list[number]
-        print(f'[Debug] Start getting ID={uid_str}')
+        #print(f'[Debug] Start getting ID={uid_str}')
         try:
             res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
         except:
