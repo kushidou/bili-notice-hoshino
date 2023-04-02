@@ -150,8 +150,13 @@ class Card(object):
         # 制作昵称  == nickimg ==
         nickname = self.latest["desc"]["user_profile"]["info"]["uname"]
         isVIP    = True if (self.latest["desc"]["user_profile"]["vip"]["vipType"] == 2) else False
-        ncolorHex= self.latest["desc"]["user_profile"]["vip"]["nickname_color"]
-        nickcolor= (int(ncolorHex[1:3],16), int(ncolorHex[3:5],16), int(ncolorHex[5:7],16), 255)
+        if(isVIP):
+            ncolorHex= self.latest["desc"]["user_profile"]["vip"]["nickname_color"]
+            nickcolor= (int(ncolorHex[1:3],16), int(ncolorHex[3:5],16), int(ncolorHex[5:7],16), 255)
+        else:
+            # 非会员没有设置color，采用默认的黑色
+            nickcolor=(32,32,32,255)
+            
         pubtime  = time.strftime("%y-%m-%d %H:%M", time.localtime(float(self.dytime)))
         nickimg = box.nickname(nick=nickname, time=pubtime, isBigVIP=isVIP, ncolor=nickcolor)
         log.info(f'Name&Time Box: nickname={nickname}, color={"vipColor" if isVIP else "black"}, time="{pubtime}"({self.dytime});BoxSize={nickimg.size}')
@@ -475,7 +480,7 @@ class Box(object):
     # 4 -> 16(nickname) -> 4 + 4 + 3 -> 12(time) -> 3
     # return 图片对象
     # offset 88,27
-    def nickname(self, nick, time, isBigVIP=False, ncolor=(251, 114, 153, 255)):
+    def nickname(self, nick, time, isBigVIP=False, ncolor=(0,0,0,255)):
         ts=(self.width - 88, 46)        # target size
         img = Image.new('RGBA', ts, (255,255,255,255))
         draw = ImageDraw.Draw(img)
