@@ -64,7 +64,7 @@ comcfg = conf.items('common')
 drawcfg = conf.items('drawCard')
 
 if conf.has_option('common','pool_live'):
-    flag_number_live = conf.get('common','pool_live')
+    flag_number_live = int(conf.get('common','pool_live'))
 if conf.getboolean('common','only_video'):
     available_type = [8]
 elif conf.getboolean('common','only_dynamic'):
