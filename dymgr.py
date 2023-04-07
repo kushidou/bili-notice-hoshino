@@ -35,13 +35,14 @@ flag_number_live = 5     # 默认每轮询5次，检查是否有主播开播。
 
 def up_history_write(uid:str, skin=None):
     global up_latest, up_dir, live_latest
-    if skin == None:
+
+    if skin == None and exists(up_dir+uid+'.json'):
         with open(up_dir+uid+'.json','r', encoding='UTF-8') as f:
             j = json.load(f)
-            if 'skin' in j:
-                skin = j['skin']
-            else:
-                skin={}
+        if 'skin' in j:
+            skin = j['skin']
+    else:
+        skin={}
     with open(up_dir+uid+'.json','w', encoding='UTF-8') as f:     # 更新记录文件
         json.dump({
                     "history": up_latest[uid],
