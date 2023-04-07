@@ -3,12 +3,14 @@
 [![Lisence](https://img.shields.io/github/license/kushidou/bili-notice-hoshino)]((LICENSE))
 ![PythonVer](https://img.shields.io/badge/python-3.8+-blue)
 [![HoshinoVer](https://img.shields.io/badge/Hoshino-v2.0.0%2B-green)](https://github.com/Ice-Cirno/HoshinoBot)
-[![Version](https://img.shields.io/badge/Beta-v0.b.7.x-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
+[![Version](https://img.shields.io/badge/Beta-v0.b.8.x-lightgrey)](https://github.com/kushidou/bili-notice-hoshino)
 [![Q群](https://img.shields.io/badge/QQ%E7%BE%A4-655742099-yellow)](https://jq.qq.com/?_wv=1027&k=CXGsKj1P)
 
 > __重要修复__
 > 
 > 2022年8月24日B站更新了搜索API，需要cookies验证。请更新最新代码，否则“昵称关注”功能不可用。
+>
+> 2023年4月4日 视频信息卡片中的short_link被short_link_v2代替，虽然这个字段没有被使用，但是会造成视频转发类的动态出错
 
 *版本更新日志请查看[wiki页面](https://github.com/kushidou/bili-notice-hoshino/wiki/%E6%9B%B4%E6%96%B0%E6%97%A5%E5%BF%97)*
 
@@ -39,7 +41,7 @@
 ## 功能：
 
 > - 获取UP主最新的动态，生成图片发送到群里
-> - 在群中关联up主，可以推送包括动态、视频、短视频、专栏文章、音频、相簿在内的绝大多数动态信息（暂不支持直播）。
+> - 在群中关联up主，可以推送包括动态、视频、短视频、专栏文章、音频、相簿在内的绝大多数动态信息。*2023.4.4 更新直播推送功能*。
 > - 支持过滤转发的互动抽奖动态、广告（简单粗暴的关键词过滤），可以由**机器人管理员**控制。
 > - ~~机器人管理员和群主、群管理可以直接增加视奸的up主，普通群员的申请信息会私发到机器人管理员处进行处理。~~（还没做，仅群管理可以关注和取关）
 > - 协议、业务分离设计，方便不同机器人平台进行移植 [接口文档](./api.md)
@@ -77,10 +79,6 @@
 
 启用插件后，群内发送  `关注uid/昵称`  并@机器人即可关注 _[@嘉然今天吃什么](https://space.bilibili.com/672328094)_，嘉然更新的动态都会发过来哦~
 
-![follow](./res/pic_markdown/dynamic_follow.png)
-
-> ** 2022-07-28重要更新：**
-> 现在支持使用昵称关注。如果昵称和现有UP主的名字、短昵称、或者B站搜索页结果完全匹配则直接关注。若无法完全匹配，那么会询问是否要关注，终于不用再去复制UID了！！🎆🎇🎆🎇🎆
 > ![follow_by_nick](./res/pic_markdown/follow_by_nick.png)
 
 ### 2-取关
@@ -104,13 +102,6 @@
 
 `bili-ctl black-words 23947287 add 拼多多 pdd`
 
-|功能|指令|参数1|参数2-n|备注
-|---|-----|-------|---------|---|
-|过滤抽奖|islucky|uid|true\|false|是否屏蔽抽奖开奖动态或者转发的抽奖。|
-|关键词过滤|black-words|uid|add 关键词1 关键词2|add 增加关键词，remove移除，list列出已经设置的关键词|
-|重载信息|reload| - | - |立即读取up记录，用于手动更新配置文件（不检查合法性，可能引发错误）|
-|昵称操作|add-nick/ del-nick/ list-nick| uid | nick(一次一个，list不要) | 为特定对象添加、删除、查看特定用户短昵称|
-
 ## 后记
 
 *2022-05-26*
@@ -128,6 +119,12 @@
 在今天把昵称操作的代码上线后，最近会降低更新频率，只进行紧急bug修复，新功能的开发、动态类型的补足都会一定程度延后，希大家谅解。
 
 最后我想给插件设计一个logo、slogan或者“看板娘”，并且做成视频放到b站上进行推广，如果大家有什么好的创意，或者牵线搭桥、提供建议的，都可以联系我，感谢~
+
+*2023-04-04*
+
+过去的半年还是有点忙的，除了支持了两个新的动态类型外，只有进行了少量bug修复，总之就是摸的很开心。
+
+最近正好遇上一个空窗期，所以花了两天时间把直播的功能做出来了。本来的直播是安排在up主轮询一起的，缺点是延迟比较大。这次看到了一个api可以一次性查询所有的up主，时效性是保证了，缺点是无法插入之前的代码了。由于想要赶在清明节之前做出来，所以功能采用独立的代码模块并且强行插入、屏蔽原有功能，所以效率上可能欠缺一点，但功能上应该是没有问题了。
 
 <details>a
     <summary>联系方式</summary>

@@ -78,6 +78,20 @@ async def bili_watch():
                         sv.logger.info(f'bot账号{sid}不在群{gid}中，将忽略该消息')
                 time.sleep(1)
         time.sleep(5)
+    elif rst < -1000:
+        # 轮询到直播
+        # 正在直播的数量为 abs(rst) - 1000
+        for dyinfo in dylist:
+            bot=get_bot()
+            msg = f'{dyinfo["nickname"]} 在{dyinfo["type"]}区开始直播啦, 快去看看吧：\n {dyinfo["link"]}  \n[CQ:image,file={dyinfo["pic"]}]'
+            for gid in dyinfo["group"]:
+                for sid in hoshino.get_self_ids():
+                    try:
+                        await bot.send_group_msg(self_id = sid, group_id=gid, message=msg)
+                    except Exception as e:
+                        sv.logger.info(f'bot账号{sid}不在群{gid}中，跳过')
+                time.sleep(1)
+
     # 借助轮询处理一些时效性的内容
     rg=[]
     for g in fo_nick.keys():

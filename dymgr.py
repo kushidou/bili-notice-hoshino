@@ -26,8 +26,30 @@ up_dir = join(curpath,'uppers/')
 # 全局变量
 number = 0              # 轮询的编号
 up_latest = {}          # 各个up主及其动态记录
+live_latest = {}        # 各个up主直播状态记录
 up_list=[]              # up主列表
 cache_clean_date = 0
+number_live = 0         # 直播轮询的编号
+flag_number_live = 5     # 默认每轮询5次，检查是否有主播开播。
+
+
+def up_history_write(uid:str, skin=None):
+    global up_latest, up_dir, live_latest
+    if skin == None:
+        with open(up_dir+uid+'.json','r', encoding='UTF-8') as f:
+            j = json.load(f)
+            if 'skin' in j:
+                skin = j['skin']
+            else:
+                skin={}
+    with open(up_dir+uid+'.json','w', encoding='UTF-8') as f:     # 更新记录文件
+        json.dump({
+                    "history": up_latest[uid],
+                    "live": live_latest[uid],
+                    "skin": skin
+                    },
+                   f, ensure_ascii=False)
+
 
 # 读取配置文件
 if not exists(join(curpath, 'config.ini')):
@@ -40,6 +62,8 @@ conf.read(join(curpath, 'config.ini'), encoding='utf-8')
 comcfg = conf.items('common')
 drawcfg = conf.items('drawCard')
 
+if conf.has_option('common','pool_live'):
+    flag_number_live = conf.get('common','pool_live')
 if conf.getboolean('common','only_video'):
     available_type = [8]
 elif conf.getboolean('common','only_dynamic'):
@@ -86,15 +110,25 @@ if exists(up_dir + 'list.json'):
     with open(join(up_dir,'list.json'), 'r', encoding='UTF-8') as f:
         up_group_info = json.load(f)
 
-    for uid in list(up_group_info.keys()):
+    up_list = list(up_group_info.keys())
+    for uid in up_list:
         if exists(up_dir+uid+'.json'):
             with open(up_dir+uid+'.json','r', encoding='UTF-8') as f:
-                up_latest[uid] = json.load(f)["history"]
+                j = json.load(f)
+
+            up_latest[uid] = j["history"]
+
+            if 'live' in j:
+                live_latest[uid] = j["live"]
+            else:
+                live_latest[uid] = 0
+                up_history_write(uid)
+                
         else:
             up_latest[uid]=[]
-            with open(up_dir+uid+'.json','w', encoding='UTF-8') as f:
-                json.dump({"history":[]}, f, ensure_ascii=False)
-    up_list = list(up_group_info.keys())
+            live_latest[uid] = 0
+            up_history_write(uid)
+    
 
 # 组成昵称查找
 gw_user = {}
@@ -125,6 +159,8 @@ async def get_update():
         rst = -1    关键词或转发抽奖验证不通过（被过滤，数量）
         如果连续有多条动态，那么只会返回正常发送的数量，不会返回-1。
         如果多条动态都是被过滤的，那么返回-n
+        
+        当rst < -1000时，表示有 abs(rst) - 1000 个up主开播了，dylist的内容都是直播间信息
 
         dylist = {
             nickname:   str     (昵称，字符串)
@@ -140,7 +176,7 @@ async def get_update():
 
         
     """
-    global number,up_latest, up_list, cache_clean_date, up_group_info
+    global number,up_latest, up_list, cache_clean_date, up_group_info, number_live, flag_number_live
     msg,dyimg,dytype = None,None,None
     rst, suc, fai=0,0,0
     dynamic_list=[]
@@ -157,6 +193,15 @@ async def get_update():
     # 提取下一个up，如果没有人关注的话，状态改成false，跳过不关注的人
     maxcount = len(up_list)
     while 1:
+        # 每flag_number_live次轮询，查一次直播间信息
+        number_live += 1
+        if flag_number_live <= number_live:
+            number_live=0
+            liverst,livelist=live_check()
+            # 由于发现了新的api可以一次性查询所有直播间，与之前的设计不同，直播功能无法很好的结合进原有代码中。
+            # 所以，这里采用直接return的方法，避免产生其他纠葛
+            return liverst, livelist
+            
         this_up = up_group_info[up_list[number]]
         if this_up["watch"] == True:                # 跳过不监控的up
             if len(this_up["group"]) == 0:          # 如果没有群关注up，就更改状态为不监控
@@ -193,7 +238,7 @@ async def get_update():
 
         for card in dylist["data"]["cards"]:
             if int(card["desc"]["dynamic_id_str"]) in up_latest[up_list[number]]:
-                break
+                break       # 此处用break而不是continue，节约时间和空间
             # 解析动态json
             dynamic = drawCard.Card(card)
             if not dynamic.json_decode_result:
@@ -248,8 +293,9 @@ async def get_update():
                 log.warning(e)
             finally:
                 up_latest[uid_str].append(dynamic.dyid)         # (无论成功失败)完成后把动态加入肯德基豪华午餐
-    with open(up_dir+uid_str+'.json','w', encoding='UTF-8') as f:     # 更新记录文件
-            json.dump({"history":up_latest[uid_str]}, f, ensure_ascii=False)
+                up_history_write(uid_str, dynamic.getskin())     # 更新记录文件
+                log.debug(f'Write skin info into up history\n')
+            
     rst = fai if suc==0 else suc
     number = 0 if number+1>=len(up_list) else number+1
     return rst, dynamic_list
@@ -311,22 +357,24 @@ def follow(uid, group):
                 upinfo["watch"] = True
                 upinfo["islucky"]= False
                 upinfo["ad_keys"]= []
+                upinfo["live"] = True
 
                 up_group_info[uid]=upinfo
                 try:
                     with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
                         json.dump(up_group_info, f, ensure_ascii=False)  
 
-                    with open(up_dir+uid+'.json','w', encoding='UTF-8') as f:             # 给up主创建和添加动态历史列表
-                        json.dump({"history":[]}, f, ensure_ascii=False)
-                        print(f'add {upinfo["uname"]}({uid}) history json to {up_dir+uid}.json')
+                    up_latest[uid]=[]
+                    live_latest[uid]=0
+                    up_history_write(uid)
+                    print(f'add {upinfo["uname"]}({uid}) history json to {up_dir+uid}.json')
 
                     up_list = list(up_group_info.keys())
 
-                    up_latest[uid]=[]
-                except:
-                    msg="UP主文件写入失败，未知错误，请手动检查配置文件。"
-                    log.info('关注失败,无法修改list文件或无法创建用户记录文件')
+                    
+                except Exception as e:
+                    msg="UP主数据写入失败，请查看日志。"
+                    log.info(f'关注失败,无法修改list文件或无法创建用户记录文件，详细信息为:{e}')
                     return False,msg
 
                 msg=f'{upinfo["uname"]}[{uid}]'
@@ -395,6 +443,79 @@ def unfollow(uid, group):
                 rst = True
                 log.info(f'取关成功，群: {group}，用户: {up_group_info[uid]["uname"]}({uid})')
     return rst, msg
+
+# 直播间检查，找开播的人
+def live_check():
+    global up_group_info, up_list, live_latest, up_dir, conf, number_live, flag_number_live
+    rst=-1000
+    dylist=[]
+
+    url='https://api.live.bilibili.com/room/v1/Room/get_status_info_by_uids'
+    header={'Content-Type': 'application/json'}
+    data = json.dumps({'uids':up_list})
+    res = requests.post(url=url, data=data, headers=header)
+    if not res.status_code == 200:
+        log.warning(f'直播间查询失败，服务器返回{res.status_code}')
+        return 0, []
+    result = json.loads(res.text)
+    if(result["code"] != 0):
+        log.warning(f'直播间查询失败，错误为{result["msg"]}')
+        return 0,[]
+    rooms = result["data"]
+    
+    for uid in rooms.keys():
+        room = rooms[uid]
+        status = room["live_status"]
+        if live_latest[uid] == status or abs(live_latest[uid]-status) == 2:
+            # 状态不变时直接跳过。如果从停播切换到轮播，也跳过。
+            continue
+            
+        if status == 1:       # 0未开播，1直播，2轮播
+            # 开始直播
+            # 检查是否发布通知，默认都发布
+            thisup = up_group_info[uid]
+            if "live" in thisup:
+                if not thisup["live"]:
+                    # 该up不纳入监控范围
+                    continue
+            if not thisup["watch"]:
+                # 未被关注，跳过
+                continue
+            # 过筛，更新状态
+            log.info(f'[LIVE] {up_group_info[uid]["uname"]}({uid}) 开始直播。 state= {live_latest[uid]} --> {status}')
+            live_latest[uid] = 1
+            up_history_write(uid)
+            with open(up_dir+uid+'.json','r', encoding='UTF-8') as f:
+                j = json.load(f)
+            if 'skin' in j:
+                skin = j['skin']
+            else:
+                skin=None
+            # 完全处理json
+            live = drawCard.Live(room)
+            drawBox = drawCard.Box(conf)       # 创建卡片图片的对象
+            roomimg,roomtype = live.draw(drawBox, skin, False)
+
+            roominfo = {
+                "nickname": live.nickname,
+                "uid":      live.uid,
+                "type":     roomtype    ,
+                "subtype":  "",
+                "time":     time.time(),         # 开播为即时消息，时间戳不重要
+                "pic":      roomimg,
+                "link":     f'https://live.bilibili.com/{live.roomid}',        #https://live.bilibili.com/528
+                "sublink":  "",
+                "group":    thisup["group"]
+            }
+            dylist.append(roominfo)
+            rst -= 1
+
+        elif status in [0, 2]:
+            log.info(f'[LIVE] {up_group_info[uid]["uname"]}({uid}) 下播了。 state= {live_latest[uid]} --> {status}')
+            live_latest[uid] = status
+            up_history_write(uid)
+
+    return rst, dylist
 
 
 async def shell(group, para, right):
@@ -713,9 +834,7 @@ def clean_cache():
         if  l > 21:
             try:
                 up_latest[uid] = up_latest[uid][(l-21):]        # 清理文件的同时清理内存
-                
-                with open(up_dir+uid+'.json','w', encoding='UTF-8') as f:
-                    json.dump({"history":up_latest[uid]}, f, ensure_ascii=False)
+                up_history_write(uid)                
             except:
                 log.error(f'Err while clean history: {uid}')
     log.info('Clean uppers history finish!')

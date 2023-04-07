@@ -171,7 +171,7 @@ def get_Image(Type, url=None, md5=None, path=None):
 def save_Image(img:object, Type:str, name:str, path=None):
     if not path:
         curpath = join(cur, 'cache')
-        if not exists(join(curpath, type)):
+        if not exists(join(curpath, Type)):
             os.makedirs(join(curpath, Type))
         img.save(join(join(curpath, Type), name))
     else:

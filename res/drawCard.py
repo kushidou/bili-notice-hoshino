@@ -111,6 +111,36 @@ class Card(object):
         return ret
 
 
+    def getskin(self):
+        # 获得用户皮肤有关信息，用于给直播时制作动态卡片使用
+        bgcard = self.latest["desc"]["user_profile"].get("decorate_card")
+        if bgcard:
+            decorate_img = bgcard["card_url"]
+            decorate_col = bgcard["fan"]["color"]
+            decorate_num = bgcard["fan"]["num_desc"]
+            if decorate_col == "":
+                decorate_col = (0,0,0)
+        else:
+            decorate_img = ''
+            decorate_col = (0,0,0)
+            decorate_num = 0
+        skin={
+            'face':{
+                'pendant': self.latest["desc"]["user_profile"]["pendant"]["image"],
+                'avatar' : self.latest["desc"]["user_profile"]["card"]["official_verify"].get("type"),
+                'yearvip': self.latest["desc"]["user_profile"]["vip"]["avatar_subscript"]
+                },
+            'nick':{
+                'VIP': True if (self.latest["desc"]["user_profile"]["vip"]["vipType"] == 2) else False
+                },
+            'back':{
+                'img': decorate_img,
+                'col': decorate_col,
+                'num': decorate_num
+                }
+            }
+        return skin
+
     @log.catch
     def draw(self, box:object(), dy_cache:bool=False):
         # 解析通用的信息，并绘制头像、昵称、背景、点赞box，然后调用其他绘制动态主体，最后把所有box合成
@@ -135,8 +165,19 @@ class Card(object):
             log_avatar_type='个人'
             log.debug('This is an account of Professional Persion')
         elif avatar_type == -1:
-            avatar_url = self.latest["desc"]["user_profile"]["vip"]["avatar_subscript_url"]
-            if not avatar_url == "":
+            # 大会员角标修改
+            # avatar_url = self.latest["desc"]["user_profile"]["vip"]["avatar_subscript_url"]
+            # if not avatar_url == "":
+            #     face_avatar = get_Image(Type="avatar",url=avatar_url)
+            #     log_avatar_type='年度会员'
+            #     log.debug('This is an account of BigVIP(Year)')
+            # else:
+            #     face_avatar = None
+            #     log_avatar_type='普通人'
+            #     log.debug('This is a normal persion.')
+            avatar_url = 'https://i0.hdslb.com/bfs/vip/icon_Certification_big_member_22_3x.png'
+            avatar_vip = self.latest["desc"]["user_profile"]["vip"]["avatar_subscript"]
+            if avatar_vip == 1:
                 face_avatar = get_Image(Type="avatar",url=avatar_url)
                 log_avatar_type='年度会员'
                 log.debug('This is an account of BigVIP(Year)')
@@ -242,7 +283,8 @@ class Card(object):
 
         img = box.combine(face=faceimg, nick=nickimg, body=bodyimg, bottom=bottomimg, bg=bgimg, is_reposted=True if self.dytype==1 else False)
 
-        if dy_cache:
+        dy_flag = conf.getboolean('cache', 'dycard_cache')
+        if dy_cache or dy_flag:
             try:
                 dy_pic_name = f'{self.uid}_{self.nickname}_{self.dyid}_{self.dytype}_{self.dyorigtype}.png'
                 save_Image(img, 'dynamic_card', name = dy_pic_name)
@@ -252,11 +294,7 @@ class Card(object):
         bio = io.BytesIO()
         img.save(bio, format="PNG")
         base64_img = 'base64://' + base64.b64encode(bio.getvalue()).decode()
-        log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.\n')
-
-        dy_flag = conf.getboolean('cache', 'dycard_cache')
-        if dy_flag:
-            save_Image(img, 'dynamic_card', f'{self.uid}_{self.dyid}_{self.dytype}_{self.nickname}.png')
+        log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.')
 
         return base64_img, ret_txt
         
@@ -332,7 +370,7 @@ class Card(object):
         viewnum = content["stat"]["view"]
         danmunum = content["stat"]["danmaku"]
         is_coop = content["rights"]["is_cooperation"]
-        link = content["short_link"]
+        link = content["short_link_v2"]                        # Fix@2023.4.4: short_link字段被short_link_v2替换
 
         cover = get_Image(Type="cover",url=coverurl)
 
@@ -395,6 +433,131 @@ class Card(object):
     def drawComic(self, content, box, is_rep=False):
         pass
 
+
+class Live(object):
+    # 直播间信息。
+    # 直播间采用api直接查询所有关注的up主，所以不适用Card类。
+    # 外部应提前获取开播状态、是否监测，然后再交给这里解析，以节约时间
+    def __init__(self, info:dict):
+        self.nickname= info["uname"]
+        self.uid     = info["uid"]
+        self.face    = info["face"]
+        self.title   = info["title"]
+        self.roomid  = info["room_id"] if info["short_id"]==0 else info["short_id"]
+        self.cover   = info["cover_from_user"] if not info["cover_from_user"] == "" else info["keyframe"]
+        self.area    = info["area_v2_name"]
+        self.areasub = info["area_v2_parent_name"]
+        self.tag1    = info["tag_name"]
+        self.tag2    = info["tags"]
+        self.isphone = True if info["broadcast_type"] else False
+        self.online  = info["online"]
+        # TODO
+        pass
+
+    def draw(self, box:object(), skin=None, dy_cache:bool=False):
+        # 绘制直播卡片。
+        # 采用类似手机动态信息流直播的形式，上面头像昵称，中间直播封面，最下面直播标题，去掉三连、时间、简介内容
+        
+        log.info("~~ Start to draw LiveRoom pciture ~~")
+        # 制作头像  == faceimg ==
+        face=get_Image(Type="face",url=self.face)
+        if skin:
+            face_pendant_url= skin['face']['pendant']
+            if not face_pendant_url == "":
+                face_pendant = get_Image(Type="pendant", url=face_pendant_url)
+                log.debug("Get pendant success.")
+            else:
+                face_pendant=None
+                log.debug("NO pendant around his/her face.")
+            avatar_type = skin['face']['avatar']
+            if avatar_type == 1:   #企业认证
+                face_avatar = get_ico('group')
+                log_avatar_type='企业'
+                log.debug('This is an account of Group.')
+            elif avatar_type == 0:     #个人认证
+                face_avatar = get_ico('persional')
+                log_avatar_type='个人'
+                log.debug('This is an account of Professional Persion')
+            elif avatar_type == -1:
+                avatar_vip = skin['face']['yearvip']
+                avatar_url = 'https://i0.hdslb.com/bfs/vip/icon_Certification_big_member_22_3x.png'
+                if avatar_vip == 1:
+                    face_avatar = get_Image(Type="avatar",url=avatar_url)
+                    log_avatar_type='年度会员'
+                    log.debug('This is an account of BigVIP(Year)')
+                else:
+                    face_avatar = None
+                    log_avatar_type='普通人'
+                    log.debug('This is a normal persion.')
+            faceimg = box.face(face, pendant=face_pendant, avatar_subscript=face_avatar)
+            log.info(f'FaceBox: 头像框={bool(face_pendant)}, 头像角标={log_avatar_type}; BoxSize={faceimg.size}', )
+
+        else:
+            faceimg = box.face(face)
+            log.info(f'FaceBox: 没有皮肤信息, BoxSize={faceimg.size}')
+
+        # 制作昵称  == nickimg ==
+        pubtime  = f'正在直播: {self.areasub}'
+        if skin:
+            isVIP = skin['nick']['VIP']
+            nickcolor=(251,114,153,255) if isVIP else (32,32,32,255)
+            nickimg = box.nickname(nick=self.nickname, time=pubtime, isBigVIP=isVIP, ncolor=nickcolor)
+            log.info(f'Name&Time Box: nickname={self.nickname}, color={"pink" if isVIP else "black"}, live-area= {self.area}-{self.areasub};BoxSize={nickimg.size}')
+        else:
+            nickimg = box.nickname(nick=self.nickname, time=pubtime)
+            log.info(f'Name&Time Box: nickname={self.nickname}, color=black, live-area= {self.area}-{self.areasub};BoxSize={nickimg.size}')
+
+        # 制作一键三连，但是不用任何数据
+        bottomimg = box.bottom(0, 0, 0)
+
+        # ==  body ==
+        # 一张大图，下面写标题
+        bodyimg = self.drawLiveRoom(box)
+        ret_txt = self.areasub
+        log.info(f'BodyBox: type={ret_txt}; BoxSize={bodyimg.size}')
+
+
+        #根据所有的长度制作背景图   == bg ==
+        decorate_img = None
+        decorate_col = (0,0,0)
+        decorate_num = 0
+        if skin:
+            if skin['back']['img'] != "":
+                decorate_img = get_Image(Type="decorate_card", url=skin['back']['img'])
+                decorate_col = skin['back']['col']
+                decorate_num = skin['back']['num']
+                if decorate_col == "":
+                    decorate_col = (0,0,0)
+            log.info(f'BackgroundBox: 卡片挂件={bool(decorate_img)}')
+        bgimg = box.bg(decorate_card=decorate_img, fan_number=decorate_num, fancolor=decorate_col)
+
+        # == 拼接全图 ==
+        img = box.combine(face=faceimg, nick=nickimg, body=bodyimg, bottom=bottomimg, bg=bgimg, is_reposted=False)
+
+        # 图片缓存
+        dy_flag = conf.getboolean('cache', 'dycard_cache')
+        if dy_cache or dy_flag:
+            try:
+                pubtime  = time.strftime("%yy-%m-%d_%H:%M", time.localtime(time.time()))
+                dy_pic_name = f'{self.uid}_{self.nickname}_{pubtime}.png'
+                save_Image(img, 'LiveRoom', name = dy_pic_name)
+                log.info(f'Save Dynamic Card Pic as "{dy_pic_name}" -->  res/cache/dynamic_card/ ')
+            except:
+                log.warning(f'Save Dynamic Card Pic failed! ')
+        # 图片编码成base64
+        bio = io.BytesIO()
+        img.save(bio, format="PNG")
+        base64_img = 'base64://' + base64.b64encode(bio.getvalue()).decode()
+        log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.')
+
+        return base64_img, ret_txt
+
+
+    # 直播间信息绘制
+    def drawLiveRoom(self, box, is_rep=False):
+        cover = get_Image(Type="cover",url=self.cover)
+        img=box.liveRoom(self.title, cover, self.online, self.area, self.isphone)
+        return img
 
 
 class Box(object):
@@ -1175,6 +1338,71 @@ class Box(object):
         return img
 
 
+    # box.liveRoom
+    # 直播间开播卡片
+    # 输入：直播间标题、封面、在线人数、分区、是否是手机直播
+    # PC直播（横屏）：  360x210
+    # 手机直播（竖屏）： 200x390
+    def liveRoom(self, title, cover, online, areasub, isphone):
+
+        limg = Image.new('RGBA', (self.width-88 - 24, 129), 'white')
+        draw = ImageDraw.Draw(limg)
+        fontbig = ImageFont.truetype(self.msyh, 14)
+        fontsmall=ImageFont.truetype(self.msyh, 12)
+        color_title= (33,33,33,255)
+        # color_desc = (102, 102, 102, 255)
+        color_info = (153, 153, 153, 255)
+        draw.rounded_rectangle(((0,0),(limg.size[0]-1,limg.size[1]-1)), radius=4, fill=(0,0,0,0), outline=(color_info),width=1)
+
+        # 放置封面
+        s =cover.size
+        if s[0]/s[1] == (203/127):
+            cover_stand = cover.resize((203,127),Image.ANTIALIAS)
+        elif s[0]/s[1] > (203/127):
+            s0 = int(s[1] * 203/127 /2)
+            cover = cover.crop((s[0]/2-s0,0,s[0]/2+s0,s[1]-1))
+            cover_stand = cover.resize((203,127),Image.ANTIALIAS)
+            # cover = cover.resize((s0, 127), Image.ANTIALIAS)
+            # cover_stand = cover.crop((s0/2-101,0, s0/2+101, 126))
+        else:
+            s1 = int(s[0] * 127/203 /2)
+            cover = cover.crop((0,s[1]/2-s1 ,s[0]-1,s[1]/2+s1 ))
+            cover_stand = cover.resize((203,127), Image.ANTIALIAS)
+            # cover = cover.resize((203,s1), Image.ANTIALIAS)
+            # cover_stand = cover.crop((0,s1/2-63, 202,s1/2+63))
+        print(f'size of cover={s}, size of cover_stand={cover_stand.size}')
+        mask=Image.new('RGBA', (203,127), (0,0,0,0))    
+        maskdr = ImageDraw.Draw(mask)
+        maskdr.rounded_rectangle((0,0,202,126), radius=4, fill=(0,0,0,255))
+        # print(f'size of mask={mask.size}')
+        limg.paste(cover_stand, (1,1),mask)
+        # 封面上放一个投稿视频/联合投稿的字符
+        draw.rounded_rectangle(((133,8),(195,26)), radius=2, fill=(251, 114, 153,255))
+        draw.text((148,10), text=("直播中"), fill=(255,255,255,255),font=fontsmall)
+        # 写标题
+        offsetx, offsety = 203+12, 9+2
+        maxx = limg.size[0]-16
+        point,line = offsetx,0
+        for n,ch in enumerate(title):
+            chnxt = title[n+1] if n+1<len(title) else None
+            if line>0 and point+22 > maxx and len(title)-n>1:
+                draw.text((point, offsety+line*19), '...', fill=color_title, font=fontbig)
+                break
+            draw.text((point, offsety + line*19), ch, fill=color_title, font=fontbig)
+            if point + 16 > maxx:
+                point = offsetx
+                line = line+1
+                continue
+            point = point + chgap(ch, chnxt, 8)
+
+        # 写播放量和弹幕量
+        offsetx, offsety= 203+12, limg.size[1]-18
+        
+        draw.text((offsetx + 1, offsety-1), areasub, color_info, fontsmall)
+        offsetx = offsetx+70
+        draw.text((offsetx, offsety-1), f'{num_human(online)}人在看', color_info, fontsmall)        
+
+        return limg
 
 
 #=============================EX functions====================================
