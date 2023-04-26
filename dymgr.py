@@ -31,6 +31,8 @@ up_list=[]              # up主列表
 cache_clean_date = 0
 number_live = 0         # 直播轮询的编号
 flag_number_live = 5     # 默认每轮询5次，检查是否有主播开播。
+gcookies = None
+gcookies_outtime = 0
 
 
 def up_history_write(uid:str, skin=None):
@@ -50,6 +52,48 @@ def up_history_write(uid:str, skin=None):
                     "skin": skin
                     },
                    f, ensure_ascii=False)
+
+def update_cookies():
+    global gcookies, gcookies_outtime
+    cok_delay = 6
+    if time.time() - gcookies_outtime > cok_delay*3600:
+        # 每n小时更新cookies
+        header={'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-encoding': 'gzip, deflate, br', 
+        'accept-language': 'zh-CN,zh;q=0.9', 
+        'sec-ch-ua': '"Chromium";v="112", "Microsoft Edge";v="112", "Not:A-Brand";v="99"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"', 
+        'sec-fetch-dest': 'document', 
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none', 
+        'sec-fetch-user': '?1', 
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36 Edg/112.0.1722.58'
+    }
+        url = "https://www.bilibili.com"
+        try:
+                # 从bilibili.com获得一条cookies
+                request = requests.get(url,headers=header)
+                cookies = request.cookies
+                # print(cookies)
+        except Exception as e:
+                log.error(f'更新小饼干失败,code={e}')
+                cookies=None
+        
+        if not cookies == None:
+            # 如果成功获取cookies,那么直接写入gcookies
+            gcookies=cookies
+            gcookies_outtime = time.time()
+            log.info("成功更新cookies")
+        elif cookies == None and gcookies:
+            # 如果获取cookies失败，但是有现成的cookies，那么不更新cookies，但是提高申请频率
+            gcookies_outtime = time.time() + cok_delay*3600 - 600
+            log.warning("未获取cookies，沿用之前的cookies，10分钟后再次尝试")
+        else:
+            log.warning("未获取cookies，重试")
+
+    pass
 
 
 # 读取配置文件
@@ -148,35 +192,6 @@ gw_nick_list = gw_nick.keys()
 
 
 async def get_update():
-    """主要功能实现，轮询各up，解析动态列表，发送最新的动态信息和卡片
-
-    Returns:
-        _type_: _description_
-        rst(num):    返回动态结果和数量
-        dylist(list):   具体的动态内容
-
-        rst = 0     无更新
-        rst = 1     得到更新（数量）
-        rst = -1    关键词或转发抽奖验证不通过（被过滤，数量）
-        如果连续有多条动态，那么只会返回正常发送的数量，不会返回-1。
-        如果多条动态都是被过滤的，那么返回-n
-        
-        当rst < -1000时，表示有 abs(rst) - 1000 个up主开播了，dylist的内容都是直播间信息
-
-        dylist = {
-            nickname:   str     (昵称，字符串)
-            uid:        num     (uid,数字)
-            type:       num/str (动态类型，由配置文件决定)
-            subtype:    num     (动态子类型。如果非转发,则subtype=type,不会留空)
-            time:       num/str (时间戳或字符串时间，配置文件决定)
-            pic:        str     (base64编码的图片)
-            link:       str     (动态的链接)
-            sublink:    str     (如果是视频文章等,这里写他们的链接。普通动态与link相同)
-            group:      list    (需要发给的群,[num])
-        }
-
-        
-    """
     global number,up_latest, up_list, cache_clean_date, up_group_info, number_live, flag_number_live
     msg,dyimg,dytype = None,None,None
     rst, suc, fai=0,0,0
@@ -191,6 +206,8 @@ async def get_update():
         clean_cache()
         await check_plugin_update()
         cache_clean_date = cache_clean_today
+    # 尝试更新cookies
+    update_cookies()
     # 提取下一个up，如果没有人关注的话，状态改成false，跳过不关注的人
     maxcount = len(up_list)
     while 1:
@@ -303,7 +320,7 @@ async def get_update():
 
 
 def follow(uid, group):
-    global number,up_latest, up_list
+    global number,up_latest, up_list, gcookies
     """关注UP主,并创建和修改对应的记录文件
 
     Args:
@@ -319,36 +336,37 @@ def follow(uid, group):
         log.info(f"关注失败,UID错误: {uid}")
         return False, msg
 
-    if uid not in up_list:  # 从未添加过
-        try:
-            try:
-                # 从bilibili.com获得一条cookies
-                url = "https://www.bilibili.com"
-                request = requests.get(url)
-                cookies = request.cookies
-            except Exception as e:
-                log.error(f'搜索UP主失败，原因为无法获取小饼干，code={e}')
-                cookies=None
-            para={"mid":str(uid)}
-            header = {
+    header = {
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
                 'Accept-Encoding': 'gzip, deflate',
                 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
                 'Connection': 'keep-alive',
                 'Host': 'api.bilibili.com',
                 'Upgrade-Insecure-Requests': '1',
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.124 Mobile Safari/537.36 Edg/102.0.1245.44'
-            }
-            if cookies:
-                res = requests.get(url=f'http://api.bilibili.com/x/space/acc/info', params=para, headers=header, cookies=cookies)
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36 Edg/112.0.1722.58'            }
+
+    if uid not in up_list:  # 从未添加过
+        try:
+            
+            para={"mid":str(uid)}            
+            if not gcookies == None:
+                res = requests.get(url=f'http://api.bilibili.com/x/space/acc/info', params=para, headers=header, cookies=gcookies)
             else:
-                res = requests.get(url=f'http://api.bilibili.com/x/space/acc/info', params=para, headers=header)
+                print("小饼干不存在")
+                res = requests.get(url=f'http://api.bilibili.com/x/space/acc/info', params=para, headers=header, cookies=gcookies)
         except:
             msg="网络出错了，请稍后再试~"
             log.info('关注失败，网络错误')
             return False, msg
-
-        resj = json.loads(res.text)
+        if '}{' in res.text:
+            jtext = '{' + res.text.split('}{')[1]
+            print("阿B返回了两段json, 取第二段")
+        else:
+            jtext = res.text
+        try:
+            resj = json.loads(jtext)
+        except:
+            resj = {"code":0, "data":{"name":"~unknow~"}}
         if not resj["code"] == 200:
             if resj["code"] == 0:
                 upinfo = {}
@@ -888,6 +906,7 @@ async def check_plugin_update():
         return
 
 async def search_up_in_bili(keywds:str):
+    global gcookies
     """到b站搜索up主，并返回最接近的信息
 
     Args:
@@ -898,28 +917,10 @@ async def search_up_in_bili(keywds:str):
         who (str):  对应的昵称
     """
     uid, who = 0, ""
-    # 2022-08-29 B站在8-24更新了API，增加了cookies验证，否则狂报412错误。使用游客cookies来解决。
+    url = "https://api.bilibili.com/x/web-interface/search/type"
+    para={"search_type":"bili_user", "keyword":keywds}
     try:
-        # 从bilibili.com获得一条cookies
-        url = "https://www.bilibili.com"
-        request = requests.get(url)
-        cookies = request.cookies
-    except Exception as e:
-        log.error(f'搜索UP主失败，原因为无法获取小饼干，code={e}')
-        return uid, who
-    try:
-        url = "https://api.bilibili.com/x/web-interface/search/type"
-        para={"search_type":"bili_user", "keyword":keywds}
-        header = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-            'Accept-Encoding': 'gzip, deflate',
-            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
-            'Connection': 'keep-alive',
-            'Host': 'api.bilibili.com',
-            'Upgrade-Insecure-Requests': '1',
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.124 Mobile Safari/537.36 Edg/102.0.1245.44'
-        }
-        res = requests.get(url=url, params=para, cookies=cookies)
+        res = requests.get(url=url, params=para, cookies=gcookies)
     except Exception as e:
         log.error(f'搜索UP主失败，原因为网络错误：{e}')
         return uid, who

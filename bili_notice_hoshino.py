@@ -116,7 +116,7 @@ async def bili_add(bot, ev):
             return
     # 提取信息，进行关注
     keys = ev.message.extract_plain_text()
-    print(f'收到观察命令:关键词={keys}, from {ev.group_id}')
+    sv.logger.info(f'收到关注命令:关键词={keys}, from {ev.group_id}')
     uid, uname, lev = await get_uid(keys)
     if lev == 1.0:
         rst, res = dymgr.follow(str(uid), ev.group_id)
@@ -260,3 +260,12 @@ async def get_uid(i:str):
         uid, full_uname, nick, l = await dymgr.guess_who(i)
         print(f'昵称关注模式，查询 {nick}: 得到结果：uid={uid}, f_uname={full_uname}, 相似率={l}')
         return uid, full_uname, l
+
+
+@sv.on_prefix(["搜索up"])
+async def bili_search_up(bot, ev):
+
+    keys = ev.message.extract_plain_text()
+    uid, who = await dymgr.search_up_in_bili(keys)
+    msg = f'搜索到up主{who}[{uid}]'
+    await bot.send(ev,msg)
