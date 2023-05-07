@@ -219,7 +219,12 @@ async def get_update():
             # 由于发现了新的api可以一次性查询所有直播间，与之前的设计不同，直播功能无法很好的结合进原有代码中。
             # 所以，这里采用直接return的方法，避免产生其他纠葛
             return liverst, livelist
-            
+        if up_list[number] not in up_group_info.keys():
+            if number+1>=len(up_list):          # 最多进行一轮
+                number = 0
+            else:
+                number = number+1
+            continue
         this_up = up_group_info[up_list[number]]
         if this_up["watch"] == True:                # 跳过不监控的up
             if len(this_up["group"]) == 0:          # 如果没有群关注up，就更改状态为不监控
@@ -247,9 +252,12 @@ async def get_update():
         except:
             log.info('Err: Get dynamic list failed.')
             return -1, []
+        if not res.status_code == 200:
+            log.warning(f'get_update() fail: Server status code = {res.status_code}')
         res.encoding = 'utf-8'          # 兼容python3.9
         dylist = json.loads(res.text)
         if not dylist["code"] == 0:
+            log.warning(f'dynamic list get fail: Server OK but code={dylist["code"]}')
             return -1, []
         if "cards" not in dylist["data"].keys():
             return -1, []
@@ -565,6 +573,7 @@ async def shell(group, para, right):
             return False, "你没有权限这么做"
         with open(join(up_dir,'list.json'), 'r', encoding='UTF-8') as f:
             up_group_info = json.load(f)
+            up_list = list(up_group_info.keys())
         msg = "信息更新完成!"
     elif cmd == "add-nick":
         rst, msg = await cmd_nick(group, para, right, 'add')
