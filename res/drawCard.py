@@ -93,10 +93,8 @@ class Card(object):
             if b[0] == '\\':
                 c = re.findall(b[1:], txt)
                 c = len(c) if c else 0
-                log.debug(f'black-words: find {b} {c} times!')
             else:
                 c = txt.count(b)
-                log.debug(f'black-words: find {b} {c} times!')
             if c:
                 ret = True
                 log.info(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
@@ -294,7 +292,8 @@ class Card(object):
         bio = io.BytesIO()
         img.save(bio, format="PNG")
         base64_img = 'base64://' + base64.b64encode(bio.getvalue()).decode()
-        log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.')
+        log.info('ALL DONE. SEND NOW.')
+        # log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.')
 
         return base64_img, ret_txt
         
@@ -548,7 +547,8 @@ class Live(object):
         bio = io.BytesIO()
         img.save(bio, format="PNG")
         base64_img = 'base64://' + base64.b64encode(bio.getvalue()).decode()
-        log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.')
+        # log.info('Congratulations! Dynamic Card Image is generated successfully. Encode as "base64" and send to QQbot.')
+        log.info('ALL DONE. SEND NOW.')
 
         return base64_img, ret_txt
 

@@ -3,6 +3,7 @@ import configparser as cfg
 import os
 from os.path import dirname, join, exists, getmtime
 from .res import drawCard
+from .res import wbi
 from loguru import logger as log
 
 help_info="""=== bili-notice-hoshino 帮助 ===
@@ -75,6 +76,7 @@ def update_cookies():
         try:
                 # 从bilibili.com获得一条cookies
                 request = requests.get(url,headers=header)
+                print('GET:\tget cookies')
                 cookies = request.cookies
                 # print(cookies)
         except Exception as e:
@@ -93,7 +95,11 @@ def update_cookies():
         else:
             log.warning("未获取cookies，重试")
 
-    pass
+        # 顺便更新wbi密钥
+        wbi.update()
+        log.info('更新wbi密钥')
+
+    
 
 
 # 读取配置文件
@@ -123,6 +129,11 @@ else:
         512,    # bangumi
         2048    # H5event
     ]
+
+if conf.has_option('common','allow_follow_illegal'):
+    allow_follow_illegal = conf.getboolean('common','allow_follow_illegal')
+else:
+    allow_follow_illegal = False
 
 log_level = conf.get('common','log_level').upper()
 if log_level not in ['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']:
@@ -174,6 +185,7 @@ if exists(up_dir + 'list.json'):
             live_latest[uid] = 0
             up_history_write(uid)
     
+log.info(f'Load up list success: {len(up_list)}')
 
 # 组成昵称查找
 gw_user = {}
@@ -196,6 +208,9 @@ async def get_update():
     msg,dyimg,dytype = None,None,None
     rst, suc, fai=0,0,0
     dynamic_list=[]
+
+    if number>=len(up_list):          # 序号异常大，清除
+        number = 0
 
     if len(up_group_info) == 0:
         return 0, []
@@ -246,7 +261,7 @@ async def get_update():
      
     if this_up["watch"]:
         uid_str = up_list[number]
-        #print(f'[Debug] Start getting ID={uid_str}')
+        # print(f'[Debug] Start getting ID={uid_str}')
         try:
             res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
         except:
@@ -258,8 +273,11 @@ async def get_update():
         dylist = json.loads(res.text)
         if not dylist["code"] == 0:
             log.warning(f'dynamic list get fail: Server OK but code={dylist["code"]}')
+            number+=1
             return -1, []
         if "cards" not in dylist["data"].keys():
+            log.warning(f'{this_up["uname"]}({uid_str}) has no dynamic CARD(s).')
+            number+=1
             return -1, []
 
         for card in dylist["data"]["cards"]:
@@ -329,6 +347,7 @@ async def get_update():
 
 def follow(uid, group):
     global number,up_latest, up_list, gcookies
+    retry_time=3
     """关注UP主,并创建和修改对应的记录文件
 
     Args:
@@ -345,91 +364,141 @@ def follow(uid, group):
         return False, msg
 
     header = {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+                'Accept': 'application/json, text/plain, */*',
                 'Accept-Encoding': 'gzip, deflate',
                 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
-                'Connection': 'keep-alive',
+                'Connection': 'close',
                 'Host': 'api.bilibili.com',
-                'Upgrade-Insecure-Requests': '1',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36 Edg/112.0.1722.58'            }
+                # 'Upgrade-Insecure-Requests': '1',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36 Edg/112.0.1722.58'}
 
     if uid not in up_list:  # 从未添加过
-        try:
-            
-            para={"mid":str(uid)}            
-            if not gcookies == None:
-                res = requests.get(url=f'http://api.bilibili.com/x/space/acc/info', params=para, headers=header, cookies=gcookies)
-            else:
-                print("小饼干不存在")
-                res = requests.get(url=f'http://api.bilibili.com/x/space/acc/info', params=para, headers=header, cookies=gcookies)
-        except:
-            msg="网络出错了，请稍后再试~"
-            log.info('关注失败，网络错误')
-            return False, msg
-        if '}{' in res.text:
-            jtext = '{' + res.text.split('}{')[1]
-            print("阿B返回了两段json, 取第二段")
-        else:
-            jtext = res.text
-        try:
-            resj = json.loads(jtext)
-        except:
-            resj = {"code":0, "data":{"name":"~unknow~"}}
-        if not resj["code"] == 200:
-            if resj["code"] == 0:
-                upinfo = {}
-                upinfo["uid"]   = int(uid)
-                upinfo["uname"] = resj["data"]["name"]
-                upinfo["group"] = [group]
-                upinfo["watch"] = True
-                upinfo["islucky"]= False
-                upinfo["ad_keys"]= []
-                upinfo["live"] = True
-
-                up_group_info[uid]=upinfo
-                try:
-                    with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
-                        json.dump(up_group_info, f, ensure_ascii=False)  
-
-                    up_latest[uid]=[]
-                    live_latest[uid]=0
-                    up_history_write(uid)
-                    print(f'add {upinfo["uname"]}({uid}) history json to {up_dir+uid}.json')
-
-                    up_list = list(up_group_info.keys())
-
-                    
-                except Exception as e:
-                    msg="UP主数据写入失败，请查看日志。"
-                    log.info(f'关注失败,无法修改list文件或无法创建用户记录文件，详细信息为:{e}')
-                    return False,msg
-
-                msg=f'{upinfo["uname"]}[{uid}]'
-            else:
-                msg = f'服务器错误(code={resj["code"]}, message={resj["message"]})'
-                log.info(f'关注失败，服务器返回(code={resj["code"]}, message={resj["message"]})')
+        para={"mid":str(uid)}  
+        while True:
+            # wbi认证尝试三次失败，放弃继续尝试并增加无名氏
+            if retry_time <=0:
+                msg='【联网核查失败】'
+                return follow_illegal(uid, group, msg)
+            # 从服务器获取信息
+            try:
+                if not gcookies == None:
+                    res = requests.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
+                else:
+                    print("小饼干不存在")
+                    res = requests.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
+            except:
+                msg="网络出错了，请稍后再试~"
+                log.info('关注失败，网络错误')
                 return False, msg
-        else:
-            msg = "UID有误。"
-            log.info(f'关注失败，查无此人(输入{uid})')
-            return False, msg
-    else:                       # 已经关注过了，那么只需要添加group
+            # 应付阿b返回两段json的情况
+            if '}{' in res.text:
+                jtext = '{' + res.text.split('}{')[1]
+                print("阿B返回了两段json, 取第二段")
+            else:
+                jtext = res.text
+            # 解析json字串，防止返回的东西不对
+            try:
+                resj = json.loads(jtext)
+            except:
+                resj = {"code":100, "data":{"name":"~unknow~"}}
+            # 根据错误码情况处理
+            if not resj["code"] == 200:
+                # 成功
+                if resj["code"] == 0:
+                    upinfo = {}
+                    upinfo["uid"]   = int(uid)
+                    upinfo["uname"] = resj["data"]["name"]
+                    upinfo["group"] = [group]
+                    upinfo["watch"] = True
+                    upinfo["islucky"]= True
+                    upinfo["ad_keys"]= []
+                    upinfo["live"] = True
+
+                    up_group_info[uid]=upinfo
+                    try:
+                        with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
+                            json.dump(up_group_info, f, ensure_ascii=False)  
+                        up_latest[uid]=[]
+                        live_latest[uid]=0
+                        up_history_write(uid)
+                        print(f'add {upinfo["uname"]}({uid}) history json to {up_dir+uid}.json')
+                        up_list = list(up_group_info.keys())
+                    except Exception as e:
+                        msg="UP主数据写入失败，请查看日志。"
+                        log.info(f'关注失败,无法修改list文件或无法创建用户记录文件，详细信息为:{e}')
+                        return False,msg
+                    
+                    msg=f'{upinfo["uname"]}[{uid}]'
+                    log.info(f'关注成功，群: {group}，用户: {up_group_info[uid]["uname"]}({uid})')
+                    return True, msg
+
+                # wbi认证失败
+                elif resj["code"] == -403:
+                    wbi.update()
+                    log.info(f'API返回"-403 访问权限不足"，即将更新密钥然后尝试：{abs(4-retry_time)}')
+                    retry_time -=1
+                    time.sleep(3)
+                    
+                # 服务器返回其他错误码
+                else:
+                    log.info(f'API返回(code={resj["code"]}, message={resj["message"]})，即将重试：{abs(4-retry_time)}')
+                    retry_time -=1
+                    time.sleep(3)
+            else:
+                # 服务器返回200，查无此人
+                msg = "UID有误。"
+                log.info(f'关注失败，查无此人(uid={uid})')
+                return False, msg
+
+    # 已经关注过了，那么只需要添加group
+    else:
         if group in up_group_info[uid]["group"]:
             log.info(f'关注失败，已经关注过了')
             msg = "已经关注过惹~"
             return False,msg
         else:    
             up_group_info[uid]["group"].append(group)
+            up_group_info[uid]["watch"]=True
             try:
                 with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:
                     json.dump(up_group_info, f, ensure_ascii=False)
             except:
                 log.info('关注失败,无法修改list文件或无法创建用户记录文件')
-                return False, "UP主文件写入失败，未知错误，请手动检查配置文件。"
+                return False, "UP主文件写入失败，未知错误，请检查数据文件。"
             msg=f'{up_group_info[uid]["uname"]}[{uid}]'
-    log.info(f'关注成功，群: {group}，用户: {up_group_info[uid]["uname"]}({uid})')
-    return True, msg
+            return True, msg
+    
 
+def follow_illegal(uid, group, rawmsg):
+    global number,up_latest, up_dir, up_list, gcookies,allow_follow_illegal
+    if allow_follow_illegal:
+        upinfo = {}
+        upinfo["uid"]   = int(uid)
+        upinfo["uname"] = "null"
+        upinfo["group"] = [group]
+        upinfo["watch"] = True
+        upinfo["islucky"]= True
+        upinfo["ad_keys"]= []
+        upinfo["live"] = True
+
+        up_group_info[uid]=upinfo
+        try:
+            with open(join(up_dir,'list.json'), 'w', encoding='UTF-8') as f:      # 更新UP主列表
+                json.dump(up_group_info, f, ensure_ascii=False)  
+
+            up_latest[uid]=[]
+            live_latest[uid]=0
+            up_history_write(uid)
+            up_list = list(up_group_info.keys())
+
+        except Exception as e:
+            msg="UP主数据写入失败，请查看日志。"
+            log.info(f'关注失败,无法修改list文件或无法创建用户记录文件，详细信息为:{e}')
+            return False,msg
+        log.info(f'关注流程失败,按用户配置开始记录uid')
+        return True, f'{rawmsg},【记录uid】'
+    else:
+        return False, rawmsg
 
 def unfollow(uid, group):
     global number,up_latest, up_list
@@ -891,8 +960,14 @@ async def check_plugin_update():
             with open(myverpath, 'r') as f:
                 mytxt = json.load(f)
                 myver = mytxt["ver"]
+                log.info("例行检查更新,从version.json获取版本号")
         except:
             myver = 'old'
+            log.info("从version.json获取版本号失败")
+    else:
+        log.info("例行检查更新,但是version.json不存在")
+        with open(myverpath, 'w', encoding='UTF-8') as f:      # 更新UP主列表
+            json.dump({"ver":"old"}, f, ensure_ascii=False)
         
     try:
         res = requests.get(url)
@@ -908,7 +983,7 @@ async def check_plugin_update():
             log.info(f'bili-notice-hoshino插件已更新, 请至github主页拉取最新代码。\n \
                 \t地址:  https://github.com/kushidou/bili-notice-hoshino  \n   \
                 \t当前版本 {myver}, 最新版本号 {newver}, 更新时间{date}\n\
-                \t更新内容:\n\t\t\t\t\t\t{desc}')
+                \t更新内容:  {desc}')
             return
     else:
         log.error(f'Check update failed! HTTP code = {res.status_code}')
