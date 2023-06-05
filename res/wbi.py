@@ -2,6 +2,7 @@
 # 一种独立于 APP 鉴权 与其他 Cookie 鉴权的方式
 # 在 REST API 请求时在 query 中添加了w_rid和wts字段，为一种 Web 端的风控手段
 # 同时抛弃了一部分api，
+# https://github.com/SocialSisterYi/bilibili-API-collect/blob/master/docs/misc/sign/wbi.md
 
 from functools import reduce
 from hashlib import md5
@@ -37,7 +38,7 @@ def encWbi(params: dict, img_key: str, sub_key: str):
     params['w_rid'] = wbi_sign
     return params
 
-def getWbiKeys() -> tuple[str, str]:
+def getWbiKeys():
     '获取最新的 img_key 和 sub_key'
     resp = requests.get('https://api.bilibili.com/x/web-interface/nav')
     resp.raise_for_status()
