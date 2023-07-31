@@ -51,9 +51,6 @@ async def getWbiKeys(): # sync to async
     sub_key = sub_url.rsplit('/', 1)[1].split('.')[0]
     return img_key, sub_key
 
-
-img_key, sub_key = await getWbiKeys()
-
 async def update(): # sync to async
     global img_key, sub_key
     img_key, sub_key = await getWbiKeys()

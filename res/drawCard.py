@@ -223,7 +223,7 @@ class Card(object):
 
         #根据类型制作body  ==  body ==
         # == 准备有关材料 ==
-        self.extra = analyze_extra(self.latest, self.card)
+        self.extra = await analyze_extra(self.latest, self.card)
         ret_txt=""
         # print(self.extra)
         if self.dytype == 1:    #转发   
@@ -1426,7 +1426,7 @@ def num_human(input):
 
 
 
-def analyze_extra(latest: dict, card: dict):
+async def analyze_extra(latest: dict, card: dict):
     #####
     #   emolist: "name": pic_pil
     #   at     : "now/ori": location:[length, type]

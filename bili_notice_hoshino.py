@@ -4,6 +4,7 @@ from os.path import exists, join
 # from loguru import logger as log
 import configparser as cfg
 from . import dymgr
+from .res import wbi
 import hoshino
 from hoshino import Service, priv, get_bot
 
@@ -57,6 +58,12 @@ fo_nick={
 # 功能：轮询所有up主，有更新就发布
 # 核心：dymgr.get_update()
 # 返回结果为轮询结果(bool)、动态内容（list）
+bot = get_bot() 
+
+@bot.on_startup
+async def startup():
+    await wbi.update()
+
 @sv.scheduled_job('interval', seconds=int(poll_time))       # 时间可以按需调整，监视的up多就短一点。但是不能太短，至少5s吧，防止被屏蔽
 async def bili_watch():
     global fo_nick
