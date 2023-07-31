@@ -1,4 +1,5 @@
 import time, os
+import asyncio
 from os.path import exists, join
 # from loguru import logger as log
 import configparser as cfg
@@ -76,8 +77,10 @@ async def bili_watch():
                         await bot.send_group_msg(self_id = sid, group_id=gid, message=msg)
                     except Exception as e:
                         sv.logger.info(f'bot账号{sid}不在群{gid}中，将忽略该消息')
-                time.sleep(1)
-        time.sleep(5)
+                # time.sleep(1)
+                await asyncio.sleep(1)
+        # time.sleep(5)
+        await asyncio.sleep(5)
     elif rst < -1000:
         # 轮询到直播
         # 正在直播的数量为 abs(rst) - 1000
@@ -90,7 +93,8 @@ async def bili_watch():
                         await bot.send_group_msg(self_id = sid, group_id=gid, message=msg)
                     except Exception as e:
                         sv.logger.info(f'bot账号{sid}不在群{gid}中，跳过')
-                time.sleep(1)
+                # time.sleep(1)
+                await asyncio.sleep(1)
 
     # 借助轮询处理一些时效性的内容
     rg=[]
@@ -119,7 +123,7 @@ async def bili_add(bot, ev):
     sv.logger.info(f'收到关注命令:关键词={keys}, from {ev.group_id}')
     uid, uname, lev = await get_uid(keys)
     if lev == 1.0:
-        rst, res = dymgr.follow(str(uid), ev.group_id)
+        rst, res = await dymgr.follow(str(uid), ev.group_id)
         if rst:
             msg = f'开始关注 {res} ,ta更新时将会第一时间推送到群里哦~'
         else:
@@ -155,7 +159,7 @@ async def bili_answer_add(bot, ev):
         else:
             if not ev.message.extract_plain_text().replace(" ","") == "否":
                 if fo_nick[ev.group_id]["fun"]=="f":
-                    rst, res = dymgr.follow(str(fo_nick[ev.group_id]["uid"]), ev.group_id)
+                    rst, res = await dymgr.follow(str(fo_nick[ev.group_id]["uid"]), ev.group_id)
                     if rst:
                         msg = f'开始关注 {res} ,ta更新时将会第一时间推送到群里哦~'
                     else:

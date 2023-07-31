@@ -1,5 +1,5 @@
 import os
-import requests
+import httpx
 import base64
 from io import BytesIO
 from os.path import dirname, join, exists
@@ -96,7 +96,7 @@ def get_ico(name, em=0):
     return img_png
 
 
-def get_Image(Type, url=None, md5=None, path=None):
+async def get_Image(Type, url=None, md5=None, path=None): # sync to async
     curpath = join(cur,'cache')
     if url:
         if "?" in url:
@@ -114,7 +114,9 @@ def get_Image(Type, url=None, md5=None, path=None):
             img = Image.open(path_url)
             return img.convert('RGBA')
             
-        resp = requests.get(url)
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url=url)
+        # resp = requests.get(url)
         log.debug(f"Getting image form Internet, downloading, type={Type}, name={filename}")
         img = Image.open(BytesIO(resp.content))
         dirpath = join(curpath, Type)
@@ -150,7 +152,9 @@ def get_Image(Type, url=None, md5=None, path=None):
         else:
             return Image.new('RGBA',(104,104), 'white')
         log.debug(f"Getting image form MD5, downloading, type={Type}, name={md5}")
-        resp = requests.get(url_md5)
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url_md5)
+        # resp = requests.get(url_md5)
         img = Image.open(BytesIO(resp.content))
         
         if not os.path.exists(dirpath):

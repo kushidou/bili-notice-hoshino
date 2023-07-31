@@ -1,4 +1,5 @@
-import json, requests, time, datetime, difflib
+import json, time, datetime, difflib, httpx
+import asyncio
 import configparser as cfg
 import os
 from os.path import dirname, join, exists, getmtime
@@ -54,7 +55,7 @@ def up_history_write(uid:str, skin=None):
                     },
                    f, ensure_ascii=False)
 
-def update_cookies():
+async def update_cookies(): # sync to async
     global gcookies, gcookies_outtime
     cok_delay = 6
     if time.time() - gcookies_outtime > cok_delay*3600:
@@ -75,7 +76,9 @@ def update_cookies():
         url = "https://www.bilibili.com"
         try:
                 # 从bilibili.com获得一条cookies
-                request = requests.get(url,headers=header)
+                # request = requests.get(url,headers=header)
+                async with httpx.AsyncClient() as client:
+                    request = await client.get(url, headers=header)
                 print('GET:\tget cookies')
                 cookies = request.cookies
                 # print(cookies)
@@ -96,7 +99,7 @@ def update_cookies():
             log.warning("未获取cookies，重试")
 
         # 顺便更新wbi密钥
-        wbi.update()
+        await wbi.update()
         log.info('更新wbi密钥')
 
     
@@ -222,7 +225,7 @@ async def get_update():
         await check_plugin_update()
         cache_clean_date = cache_clean_today
     # 尝试更新cookies
-    update_cookies()
+    await update_cookies()
     # 提取下一个up，如果没有人关注的话，状态改成false，跳过不关注的人
     maxcount = len(up_list)
     while 1:
@@ -230,7 +233,7 @@ async def get_update():
         number_live += 1
         if flag_number_live <= number_live:
             number_live=0
-            liverst,livelist=live_check()
+            liverst,livelist=await live_check()
             # 由于发现了新的api可以一次性查询所有直播间，与之前的设计不同，直播功能无法很好的结合进原有代码中。
             # 所以，这里采用直接return的方法，避免产生其他纠葛
             return liverst, livelist
@@ -263,7 +266,9 @@ async def get_update():
         uid_str = up_list[number]
         # print(f'[Debug] Start getting ID={uid_str}')
         try:
-            res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
+            async with httpx.AsyncClient() as client:
+                res = await client.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}')
+            # res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
         except:
             log.info('Err: Get dynamic list failed.')
             return -1, []
@@ -309,7 +314,7 @@ async def get_update():
                         # 只解析支持的类型
                         if dynamic.dytype in available_type or (dynamic.dytype==1 and dynamic.dyorigtype in available_type):
                             drawBox = drawCard.Box(conf)       # 创建卡片图片的对象
-                            dyimg, dytype = dynamic.draw(drawBox, conf.getboolean('cache', 'dycard_cache'))   # 绘制动态
+                            dyimg, dytype = await dynamic.draw(drawBox, conf.getboolean('cache', 'dycard_cache'))   # 绘制动态
                             # msg = f"{dynamic.nickname} {dytype}, 点击链接直达：\n https://t.bilibili.com/{dynamic.dyidstr}  \n[CQ:image,file={dyimg}]"
                             dyinfo = {
                                 "nickname": dynamic.nickname,
@@ -345,7 +350,7 @@ async def get_update():
     return rst, dynamic_list
 
 
-def follow(uid, group):
+async def follow(uid, group): # sync to async
     global number,up_latest, up_list, gcookies
     retry_time=3
     """关注UP主,并创建和修改对应的记录文件
@@ -382,10 +387,14 @@ def follow(uid, group):
             # 从服务器获取信息
             try:
                 if not gcookies == None:
-                    res = requests.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
+                    async with httpx.AsyncClient() as client:
+                        res = await client.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
+                    # res = requests.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
                 else:
                     print("小饼干不存在")
-                    res = requests.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
+                    async with httpx.AsyncClient() as client:
+                        res = await client.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
+                    # res = requests.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
             except:
                 msg="网络出错了，请稍后再试~"
                 log.info('关注失败，网络错误')
@@ -434,16 +443,18 @@ def follow(uid, group):
 
                 # wbi认证失败
                 elif resj["code"] == -403:
-                    wbi.update()
+                    await wbi.update()
                     log.info(f'API返回"-403 访问权限不足"，即将更新密钥然后尝试：{abs(4-retry_time)}')
                     retry_time -=1
-                    time.sleep(3)
+                    # time.sleep(3)
+                    await asyncio.sleep(3)
                     
                 # 服务器返回其他错误码
                 else:
                     log.info(f'API返回(code={resj["code"]}, message={resj["message"]})，即将重试：{abs(4-retry_time)}')
                     retry_time -=1
-                    time.sleep(3)
+                    # time.sleep(3)
+                    await asyncio.sleep(3)
             else:
                 # 服务器返回200，查无此人
                 msg = "UID有误。"
@@ -541,7 +552,7 @@ def unfollow(uid, group):
     return rst, msg
 
 # 直播间检查，找开播的人
-def live_check():
+async def live_check(): # sync to async
     global up_group_info, up_list, live_latest, up_dir, conf, number_live, flag_number_live
     rst=-1000
     dylist=[]
@@ -549,7 +560,9 @@ def live_check():
     url='https://api.live.bilibili.com/room/v1/Room/get_status_info_by_uids'
     header={'Content-Type': 'application/json'}
     data = json.dumps({'uids':up_list})
-    res = requests.post(url=url, data=data, headers=header)
+    async with httpx.AsyncClient() as client:
+        res = await client.post(url=url, data=data, headers=header)
+    # res = requests.post(url=url, data=data, headers=header)
     if not res.status_code == 200:
         log.warning(f'直播间查询失败，服务器返回{res.status_code}')
         return 0, []
@@ -590,7 +603,7 @@ def live_check():
             # 完全处理json
             live = drawCard.Live(room)
             drawBox = drawCard.Box(conf)       # 创建卡片图片的对象
-            roomimg,roomtype = live.draw(drawBox, skin, False)
+            roomimg,roomtype = await live.draw(drawBox, skin, False)
 
             roominfo = {
                 "nickname": live.nickname,
@@ -970,7 +983,9 @@ async def check_plugin_update():
             json.dump({"ver":"old"}, f, ensure_ascii=False)
         
     try:
-        res = requests.get(url)
+        async with httpx.AsyncClient() as client:
+            res = await client.get(url=url)
+        # res = requests.get(url)
     except:
         log.error(f'Check update failed! Please check your network.')
         return
@@ -1004,7 +1019,9 @@ async def search_up_in_bili(keywds:str):
     url = "https://api.bilibili.com/x/web-interface/search/type"
     para={"search_type":"bili_user", "keyword":keywds}
     try:
-        res = requests.get(url=url, params=para, cookies=gcookies)
+        async with httpx.AsyncClient() as client:
+            res = await client.get(url=url, params=para, cookies=gcookies)
+        # res = requests.get(url=url, params=para, cookies=gcookies)
     except Exception as e:
         log.error(f'搜索UP主失败，原因为网络错误：{e}')
         return uid, who
