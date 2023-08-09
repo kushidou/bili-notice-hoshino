@@ -140,15 +140,15 @@ class Card(object):
         return skin
 
     @log.catch
-    def draw(self, box:object(), dy_cache:bool=False):
+    async def draw(self, box:object(), dy_cache:bool=False): # sync to async
         # 解析通用的信息，并绘制头像、昵称、背景、点赞box，然后调用其他绘制动态主体，最后把所有box合成
         # 制作头像  == faceimg ==
         
         log.info("~~ Start to draw dynamic card pciture ~~")
-        face=get_Image(Type="face",url=self.latest["desc"]["user_profile"]["info"]["face"])
+        face=await get_Image(Type="face",url=self.latest["desc"]["user_profile"]["info"]["face"])
         face_pendant_url= self.latest["desc"]["user_profile"]["pendant"]["image"]
         if not face_pendant_url == "":
-            face_pendant = get_Image(Type="pendant", url=face_pendant_url)
+            face_pendant = await get_Image(Type="pendant", url=face_pendant_url)
             log.debug("Get pendant success.")
         else:
             face_pendant=None
@@ -176,7 +176,7 @@ class Card(object):
             avatar_url = 'https://i0.hdslb.com/bfs/vip/icon_Certification_big_member_22_3x.png'
             avatar_vip = self.latest["desc"]["user_profile"]["vip"]["avatar_subscript"]
             if avatar_vip == 1:
-                face_avatar = get_Image(Type="avatar",url=avatar_url)
+                face_avatar = await get_Image(Type="avatar",url=avatar_url)
                 log_avatar_type='年度会员'
                 log.debug('This is an account of BigVIP(Year)')
             else:
@@ -223,35 +223,35 @@ class Card(object):
 
         #根据类型制作body  ==  body ==
         # == 准备有关材料 ==
-        self.extra = analyze_extra(self.latest, self.card)
+        self.extra = await analyze_extra(self.latest, self.card)
         ret_txt=""
         # print(self.extra)
         if self.dytype == 1:    #转发   
-            bodyimg = self.drawRepost(self.card, box)
+            bodyimg = await self.drawRepost(self.card, box)
             ret_txt="转发"
         elif self.dytype == 2:  #图片
-            bodyimg = self.drawImage(self.card, box)
+            bodyimg = await self.drawImage(self.card, box)
             ret_txt="图文"
         elif self.dytype == 4:  #文字
             bodyimg = self.drawobj(self.card, box)
             ret_txt="动态"
         elif self.dytype == 8:  #视频
-            bodyimg = self.drawVideo(self.card, box)
+            bodyimg = await self.drawVideo(self.card, box)
             ret_txt="视频"
         elif self.dytype == 16:  #小视频
-            bodyimg = self.drawsmallVideo(self.card, box)
+            bodyimg = await self.drawsmallVideo(self.card, box)
             ret_txt="视频"
         elif self.dytype == 64: #专栏
-            bodyimg = self.drawArticle(self.card, box)
+            bodyimg = await self.drawArticle(self.card, box)
             ret_txt="专栏文章"
         elif self.dytype == 256: #音频
-            bodyimg = self.drawAudio(self.card, box)
+            bodyimg = await self.drawAudio(self.card, box)
             ret_txt="音频"
         elif self.dytype == 512: #番剧
-            bodyimg = self.drawBangumi(self.card, box)
+            bodyimg = await self.drawBangumi(self.card, box)
             ret_txt="番剧"
         elif self.dytype == 2048:    #H5
-            bodyimg = self.drawH5Event(self.card, box)
+            bodyimg = await self.drawH5Event(self.card, box)
             ret_txt="H5动态"
         elif self.dytype == 2049:   #漫画
             bodyimg = self.drawComic(self.card, box)
@@ -266,7 +266,7 @@ class Card(object):
         bgcard = self.latest["desc"]["user_profile"].get("decorate_card")
         if bgcard:
             card_url     = bgcard["card_url"]
-            decorate_img = get_Image(Type="decorate_card", url=card_url)
+            decorate_img = await get_Image(Type="decorate_card", url=card_url)
             decorate_col = bgcard["fan"]["color"]
             decorate_num = bgcard["fan"]["num_desc"]
             if decorate_col == "":
@@ -299,35 +299,35 @@ class Card(object):
         
 
     #Type=1     转发    repost
-    def drawRepost(self, content, box, is_rep=False):
+    async def drawRepost(self, content, box, is_rep=False): # sync to async
         # 解析出现在动态内容、原始动态信息
         # 先按类型绘制原始动态,贴身灰色背景，然后绘制当前动态（纯文字），拼接，最后返回完整图片
         log.info('Type = Repost')
         oritype = self.latest["desc"]["orig_type"]
         if oritype in [2,4,8,64,256,2048]:
             orname =content["origin_user"]["info"]["uname"]
-            orface = get_Image(Type = "face", url=content["origin_user"]["info"]["face"])
+            orface = await get_Image(Type = "face", url=content["origin_user"]["info"]["face"])
         elif oritype in [512]:
             orname = content["origin"]["apiSeasonInfo"]["title"]
-            orface = get_Image(Type="cover", url=content["origin"]["apiSeasonInfo"]["cover"] )
+            orface = await get_Image(Type="cover", url=content["origin"]["apiSeasonInfo"]["cover"] )
 
         img_now = box.text(content["item"]["content"], self.extra)
 
         
         if oritype == 2:    # 转发带图动态
-            img_ori = self.drawImage(content["origin"], box, is_rep=True)
+            img_ori = await self.drawImage(content["origin"], box, is_rep=True)
         elif oritype == 4:  # 转发别人的动态
             img_ori = self.drawobj(content["origin"], box, is_rep=True)
         elif oritype == 8:  # 转发视频
-            img_ori = self.drawVideo(content["origin"], box, is_rep=True)
+            img_ori = await self.drawVideo(content["origin"], box, is_rep=True)
         elif oritype == 64: # 转发专栏文章
-            img_ori = self.drawArticle(content["origin"], box, is_rep=True)
+            img_ori = await self.drawArticle(content["origin"], box, is_rep=True)
         elif oritype == 256:# 转发音频
-            img_ori = self.drawAudio(content["origin"], box, is_rep=True)
+            img_ori = await self.drawAudio(content["origin"], box, is_rep=True)
         elif oritype == 512: # 转发番剧剧集
-            img_ori = self.drawBangumi(content["origin"], box, is_rep=True)
+            img_ori = await self.drawBangumi(content["origin"], box, is_rep=True)
         elif oritype == 2048:   # 转发h5活动
-            img_ori = self.drawH5Event(content["origin"], box, is_rep=True)
+            img_ori = await self.drawH5Event(content["origin"], box, is_rep=True)
         
 
         img = box.repost(orface, orname, img_now, img_ori)
@@ -335,7 +335,7 @@ class Card(object):
 
 
     # Type=2    图片动态    Image
-    def drawImage(self, content, box, is_rep=False):
+    async def drawImage(self, content, box, is_rep=False): # sync to async
         # 文字部分
         text = content["item"]["description"]
         # img = box.text(text, self.extra)
@@ -345,7 +345,7 @@ class Card(object):
         url_list=[]
         pic_count = content["item"]["pictures_count"]
         for picinfo in content["item"]["pictures"]:
-            pics.append(get_Image(Type='image', url=picinfo["img_src"]))
+            pics.append(await get_Image(Type='image', url=picinfo["img_src"]))
 
         img = box.image(content=text, ex=self.extra, pics=pics, pic_count=pic_count, is_reposted=is_rep)
         return img
@@ -361,7 +361,7 @@ class Card(object):
         return img
 
     # Type=8    发布视频    Video
-    def drawVideo(self, content, box, is_rep=False):
+    async def drawVideo(self, content, box, is_rep=False): # sync to async
         title = content["title"]
         desc_text = content["desc"]
         dy_text = content["dynamic"]
@@ -371,22 +371,22 @@ class Card(object):
         is_coop = content["rights"]["is_cooperation"]
         link = content["short_link_v2"]                        # Fix@2023.4.4: short_link字段被short_link_v2替换
 
-        cover = get_Image(Type="cover",url=coverurl)
+        cover = await get_Image(Type="cover",url=coverurl)
 
         img=box.video(title,desc_text, viewnum, danmunum, cover, is_coop, dy_text, is_reposted=is_rep)
         exinfo="abc"
         return img
 
     # Type=16   小视频      smallVideo      ( 其实叫短视频，但我突然就像这么称呼了。根据实际测试小视频的卡片和正常视频差不多)
-    def drawsmallVideo(self, content, box, is_rep=False):
-        return self.drawVideo(content, box, is_rep)
+    async def drawsmallVideo(self, content, box, is_rep=False): # sync to async
+        return await self.drawVideo(content, box, is_rep)
 
     # Type=64   专栏        Article
-    def drawArticle(self, content, box, is_rep=False):
+    async def drawArticle(self, content, box, is_rep=False): # sync to async
         imgs = []
         img_urls = content["image_urls"]
         for url in img_urls:
-            imgs.append(get_Image(Type="article_cover", url=url))
+            imgs.append(await get_Image(Type="article_cover", url=url))
         title = content["title"]
         summary= content["summary"]
         template = content["template_id"]
@@ -395,9 +395,9 @@ class Card(object):
         return img
 
     # Type=256  音频        Audio
-    def drawAudio(self, content, box, is_rep=False):
+    async def drawAudio(self, content, box, is_rep=False): # sync to async
         cover_url = content["cover"]
-        cover = get_Image(Type="cover", url=cover_url)
+        cover = await get_Image(Type="cover", url=cover_url)
         desc = content["intro"]
         title = content["title"]
         subtype = content["typeInfo"]
@@ -407,11 +407,11 @@ class Card(object):
 
 
     # Type=512  番剧        Bangumi         （貌似只出现在转发里）
-    def drawBangumi(self, content, box, is_rep=False):
+    async def drawBangumi(self, content, box, is_rep=False): # sync to async
         sptitle = content["apiSeasonInfo"]["title"]
-        spcover = get_Image(Type="cover", url=content["apiSeasonInfo"]["cover"])
+        spcover = await get_Image(Type="cover", url=content["apiSeasonInfo"]["cover"])
         eptitle = content["index_title"]
-        epcover = get_Image(Type="cover", url=content["cover"])
+        epcover = await get_Image(Type="cover", url=content["cover"])
         epplay  = content["play_count"]
         epdanmu = content["bullet_count"]
 
@@ -419,10 +419,10 @@ class Card(object):
         return img
 
     # Type=2048 H5活动      H5Event
-    def drawH5Event(self, content, box, is_rep=False):
+    async def drawH5Event(self, content, box, is_rep=False): # sync to async
         h5title = content["sketch"]["title"]
         h5desc  = content["sketch"]["desc_text"]
-        h5cover = get_Image(Type="cover", url=content["sketch"]["cover_url"])
+        h5cover = await get_Image(Type="cover", url=content["sketch"]["cover_url"])
         desc    = content["vest"]["content"]
 
         img = box.h5( h5title, h5desc, h5cover, desc, ex=self.extra, is_reposted=is_rep)
@@ -453,17 +453,17 @@ class Live(object):
         # TODO
         pass
 
-    def draw(self, box:object(), skin=None, dy_cache:bool=False):
+    async def draw(self, box:object(), skin=None, dy_cache:bool=False): # sync to async
         # 绘制直播卡片。
         # 采用类似手机动态信息流直播的形式，上面头像昵称，中间直播封面，最下面直播标题，去掉三连、时间、简介内容
         
         log.info("~~ Start to draw LiveRoom pciture ~~")
         # 制作头像  == faceimg ==
-        face=get_Image(Type="face",url=self.face)
+        face=await get_Image(Type="face",url=self.face)
         if skin:
             face_pendant_url= skin['face']['pendant']
             if not face_pendant_url == "":
-                face_pendant = get_Image(Type="pendant", url=face_pendant_url)
+                face_pendant = await get_Image(Type="pendant", url=face_pendant_url)
                 log.debug("Get pendant success.")
             else:
                 face_pendant=None
@@ -481,7 +481,7 @@ class Live(object):
                 avatar_vip = skin['face']['yearvip']
                 avatar_url = 'https://i0.hdslb.com/bfs/vip/icon_Certification_big_member_22_3x.png'
                 if avatar_vip == 1:
-                    face_avatar = get_Image(Type="avatar",url=avatar_url)
+                    face_avatar = await get_Image(Type="avatar",url=avatar_url)
                     log_avatar_type='年度会员'
                     log.debug('This is an account of BigVIP(Year)')
                 else:
@@ -511,7 +511,7 @@ class Live(object):
 
         # ==  body ==
         # 一张大图，下面写标题
-        bodyimg = self.drawLiveRoom(box)
+        bodyimg = await self.drawLiveRoom(box)
         ret_txt = self.areasub
         log.info(f'BodyBox: type={ret_txt}; BoxSize={bodyimg.size}')
 
@@ -522,7 +522,7 @@ class Live(object):
         decorate_num = 0
         if skin:
             if skin['back']['img'] != "":
-                decorate_img = get_Image(Type="decorate_card", url=skin['back']['img'])
+                decorate_img = await get_Image(Type="decorate_card", url=skin['back']['img'])
                 decorate_col = skin['back']['col']
                 decorate_num = skin['back']['num']
                 if decorate_col == "":
@@ -554,8 +554,8 @@ class Live(object):
 
 
     # 直播间信息绘制
-    def drawLiveRoom(self, box, is_rep=False):
-        cover = get_Image(Type="cover",url=self.cover)
+    async def drawLiveRoom(self, box, is_rep=False):
+        cover = await get_Image(Type="cover",url=self.cover)
         img=box.liveRoom(self.title, cover, self.online, self.area, self.isphone)
         return img
 
@@ -1426,7 +1426,7 @@ def num_human(input):
 
 
 
-def analyze_extra(latest: dict, card: dict):
+async def analyze_extra(latest: dict, card: dict):
     #####
     #   emolist: "name": pic_pil
     #   at     : "now/ori": location:[length, type]
@@ -1439,7 +1439,7 @@ def analyze_extra(latest: dict, card: dict):
         for emo in emotes:
             emo_name = emo["text"]
             emo_url  = emo["url"]
-            emo_img  = get_Image(Type='emote', url=emo_url)
+            emo_img  = await get_Image(Type='emote', url=emo_url)
             emolist[emo_name]=emo_img
     if latest["display"].get("origin"):
         if latest["display"]["origin"].get("emoji_info"):
@@ -1447,7 +1447,7 @@ def analyze_extra(latest: dict, card: dict):
             for emo in emotes:
                 emo_name = emo["text"]
                 emo_url  = emo["url"]
-                emo_img  = get_Image(Type='emote', url=emo_url)
+                emo_img  = await get_Image(Type='emote', url=emo_url)
                 emolist[emo_name]=emo_img
 
     # @、抽奖、投票 蓝色字体，如果可以的话最好能加上符号

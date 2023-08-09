@@ -8,7 +8,7 @@ from functools import reduce
 from hashlib import md5
 import urllib.parse
 import time
-import requests
+import httpx
 
 mixinKeyEncTab = [
     46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49,
@@ -38,9 +38,11 @@ def encWbi(params: dict, img_key: str, sub_key: str):
     params['w_rid'] = wbi_sign
     return params
 
-def getWbiKeys():
+async def getWbiKeys(): # sync to async
     '获取最新的 img_key 和 sub_key'
-    resp = requests.get('https://api.bilibili.com/x/web-interface/nav')
+    async with httpx.AsyncClient() as client:
+        resp = await client.get('https://api.bilibili.com/x/web-interface/nav')
+    # resp = requests.get('https://api.bilibili.com/x/web-interface/nav')
     resp.raise_for_status()
     json_content = resp.json()
     img_url: str = json_content['data']['wbi_img']['img_url']
@@ -49,12 +51,9 @@ def getWbiKeys():
     sub_key = sub_url.rsplit('/', 1)[1].split('.')[0]
     return img_key, sub_key
 
-
-img_key, sub_key = getWbiKeys()
-
-def update():
+async def update(): # sync to async
     global img_key, sub_key
-    img_key, sub_key = getWbiKeys()
+    img_key, sub_key = await getWbiKeys()
 
 def encode(para:dict):
     global img_key, sub_key
