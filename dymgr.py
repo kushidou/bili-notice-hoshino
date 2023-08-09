@@ -960,9 +960,9 @@ async def check_plugin_update():
     # version.json内容：{"ver":"0.x.x", "date":"2022-07-01", "desc":["更新了版本检查功能，仅在日志里输出"]}
     way = conf.getint('common','if_check_update')
     if way == 1:
-        url = 'http://gitee.com/kushidou/bili-notice-hoshino/raw/main/version.json'
+        url = 'https://gitee.com/kushidou/bili-notice-hoshino/raw/main/version.json'
     elif way == 2:
-        url = 'http://github.com/kushidou/bili-notice-hoshino/raw/main/version.json'
+        url = 'https://github.com/kushidou/bili-notice-hoshino/raw/main/version.json'
     else:
         return
     myverpath = join(curpath,'version.json')
@@ -984,7 +984,7 @@ async def check_plugin_update():
         
     try:
         async with httpx.AsyncClient() as client:
-            res = await client.get(url=url)
+            res = await client.get(url=url, follow_redirects=True)
         # res = requests.get(url)
     except:
         log.error(f'Check update failed! Please check your network.')

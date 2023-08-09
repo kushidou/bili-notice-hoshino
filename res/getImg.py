@@ -126,7 +126,8 @@ async def get_Image(Type, url=None, md5=None, path=None): # sync to async
         print(path_url)
 
         
-        if img.mode == 'RGBA' and 'jpg' in path_url:
+        # if img.mode == 'RGBA' and 'jpg' in path_url:
+        if (img.mode == 'P' or img.mode == 'RGBA') and 'jpg' in path_url:
             img = img.convert('RGB')
             print('Image type convert: RGBA -> RGB')
         img.save(path_url)                # 保存文件
