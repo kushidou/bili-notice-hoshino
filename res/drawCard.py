@@ -537,7 +537,7 @@ class Live(object):
         dy_flag = conf.getboolean('cache', 'dycard_cache')
         if dy_cache or dy_flag:
             try:
-                pubtime  = time.strftime("%yy-%m-%d_%H:%M", time.localtime(time.time()))
+                pubtime  = time.strftime("%yy-%m-%d_%H%M", time.localtime(time.time()))
                 dy_pic_name = f'{self.uid}_{self.nickname}_{pubtime}.png'
                 save_Image(img, 'LiveRoom', name = dy_pic_name)
                 log.info(f'Save Dynamic Card Pic as "{dy_pic_name}" -->  res/cache/dynamic_card/ ')
