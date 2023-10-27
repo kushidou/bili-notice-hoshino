@@ -9,7 +9,9 @@ from hashlib import md5
 import urllib.parse
 import time
 import httpx
-
+p = {
+    "all://":None
+}
 mixinKeyEncTab = [
     46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49,
     33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40,
@@ -40,7 +42,7 @@ def encWbi(params: dict, img_key: str, sub_key: str):
 
 async def getWbiKeys(): # sync to async
     '获取最新的 img_key 和 sub_key'
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(proxies=p) as client:
         resp = await client.get('https://api.bilibili.com/x/web-interface/nav')
     # resp = requests.get('https://api.bilibili.com/x/web-interface/nav')
     resp.raise_for_status()

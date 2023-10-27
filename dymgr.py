@@ -36,6 +36,9 @@ flag_number_live = 5     # 默认每轮询5次，检查是否有主播开播。
 gcookies = None
 gcookies_outtime = 0
 
+p = {
+    "all://":None
+}
 
 def up_history_write(uid:str, skin=None):
     global up_latest, up_dir, live_latest
@@ -77,7 +80,7 @@ async def update_cookies(): # sync to async
         try:
                 # 从bilibili.com获得一条cookies
                 # request = requests.get(url,headers=header)
-                async with httpx.AsyncClient() as client:
+                async with httpx.AsyncClient(proxies=p) as client:
                     request = await client.get(url, headers=header)
                 print('GET:\tget cookies')
                 cookies = request.cookies
@@ -266,7 +269,7 @@ async def get_update():
         uid_str = up_list[number]
         # print(f'[Debug] Start getting ID={uid_str}')
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(proxies=p) as client:
                 res = await client.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}')
             # res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
         except:
@@ -387,12 +390,12 @@ async def follow(uid, group): # sync to async
             # 从服务器获取信息
             try:
                 if not gcookies == None:
-                    async with httpx.AsyncClient() as client:
+                    async with httpx.AsyncClient(proxies=p) as client:
                         res = await client.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
                     # res = requests.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
                 else:
                     print("小饼干不存在")
-                    async with httpx.AsyncClient() as client:
+                    async with httpx.AsyncClient(proxies=p) as client:
                         res = await client.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
                     # res = requests.get(url=f'https://api.bilibili.com/x/space/wbi/acc/info', params=wbi.encode(para), headers=header, cookies=gcookies)
             except:
@@ -558,10 +561,15 @@ async def live_check(): # sync to async
     dylist=[]
 
     url='https://api.live.bilibili.com/room/v1/Room/get_status_info_by_uids'
-    header={'Content-Type': 'application/json'}
+    header={
+        'Content-Type': 'application/json',
+        'accept':'*/*',
+        'user-agent':'curl/7.0.0'
+        }
     data = json.dumps({'uids':up_list})
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(proxies=p) as client:
         res = await client.post(url=url, data=data, headers=header)
+        # res = await client.get(url=url+'?'+para, headers=header)
     # res = requests.post(url=url, data=data, headers=header)
     if not res.status_code == 200:
         log.warning(f'直播间查询失败，服务器返回{res.status_code}')
@@ -983,7 +991,7 @@ async def check_plugin_update():
             json.dump({"ver":"old"}, f, ensure_ascii=False)
         
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(proxies=p) as client:
             res = await client.get(url=url, follow_redirects=True)
         # res = requests.get(url)
     except:
@@ -1019,7 +1027,7 @@ async def search_up_in_bili(keywds:str):
     url = "https://api.bilibili.com/x/web-interface/search/type"
     para={"search_type":"bili_user", "keyword":keywds}
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(proxies=p) as client:
             res = await client.get(url=url, params=para, cookies=gcookies)
         # res = requests.get(url=url, params=para, cookies=gcookies)
     except Exception as e:

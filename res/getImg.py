@@ -16,7 +16,9 @@ from loguru import logger as log
     个人认证 persional  lighting_yellow.svg,64x64
     企业认证 group      lighting_blue.svg,64x64
 '''
-
+p = {
+    "all://":None
+}
 # 各图标的文件和默认大小信息
 # ico_like    = {'file':'like.svg',       'size':(40,40)        }
 # ico_share   = {'file':'share.svg',      'size':(40,40)        }
@@ -114,7 +116,7 @@ async def get_Image(Type, url=None, md5=None, path=None): # sync to async
             img = Image.open(path_url)
             return img.convert('RGBA')
             
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(proxies=p) as client:
             resp = await client.get(url=url)
         # resp = requests.get(url)
         log.debug(f"Getting image form Internet, downloading, type={Type}, name={filename}")
@@ -153,7 +155,7 @@ async def get_Image(Type, url=None, md5=None, path=None): # sync to async
         else:
             return Image.new('RGBA',(104,104), 'white')
         log.debug(f"Getting image form MD5, downloading, type={Type}, name={md5}")
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(proxies=p) as client:
             resp = await client.get(url_md5)
         # resp = requests.get(url_md5)
         img = Image.open(BytesIO(resp.content))
