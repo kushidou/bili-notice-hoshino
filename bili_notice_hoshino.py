@@ -7,6 +7,7 @@ from . import dymgr
 from .res import wbi
 import hoshino
 from hoshino import Service, priv, get_bot
+from hoshino.typing import MessageSegment
 
 
 helpinfo='''
@@ -77,7 +78,9 @@ async def bili_watch():
             else:
                 dytype = f'发布了一个新{dyinfo["type"]}'
 
-            msg = f'{dyinfo["nickname"]} {dytype}, 点击链接直达：\n {dyinfo["link"]}  \n[CQ:image,file={dyinfo["pic"]}]'
+            msg_txt = f'{dyinfo["nickname"]} {dytype}, 点击链接直达：\n {dyinfo["link"]}'
+            msg_pic = MessageSegment.image(dyinfo["pic"])
+            msg = msg_txt + msg_pic
             for gid in dyinfo["group"]:
                 for sid in hoshino.get_self_ids():
                     try:
@@ -93,7 +96,9 @@ async def bili_watch():
         # 正在直播的数量为 abs(rst) - 1000
         for dyinfo in dylist:
             bot=get_bot()
-            msg = f'{dyinfo["nickname"]} 在{dyinfo["type"]}区开始直播啦, 快去看看吧：\n {dyinfo["link"]}  \n[CQ:image,file={dyinfo["pic"]}]'
+            msg_txt = f'{dyinfo["nickname"]} 在{dyinfo["type"]}区开始直播啦, 快去看看吧：\n {dyinfo["link"]}'
+            msg_pic = MessageSegment.image(dyinfo["pic"])
+            msg = msg_txt + msg_pic
             for gid in dyinfo["group"]:
                 for sid in hoshino.get_self_ids():
                     try:
