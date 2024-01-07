@@ -19,6 +19,23 @@ mixinKeyEncTab = [
     36, 20, 34, 44, 52
 ]
 
+img_key, sub_key = '', ''
+
+header={'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-encoding': 'gzip, deflate, br', 
+        'accept-language': 'zh-CN,zh;q=0.9', 
+        'sec-ch-ua': '"Chromium";v="112", "Microsoft Edge";v="112", "Not:A-Brand";v="99"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"', 
+        'sec-fetch-dest': 'document', 
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none', 
+        'sec-fetch-user': '?1', 
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36 Edg/112.0.1722.58'
+    }
+        
+
 def getMixinKey(orig: str):
     '对 imgKey 和 subKey 进行字符顺序打乱编码'
     return reduce(lambda s, i: s + orig[i], mixinKeyEncTab, '')[:32]
@@ -42,11 +59,11 @@ def encWbi(params: dict, img_key: str, sub_key: str):
 
 async def getWbiKeys(): # sync to async
     '获取最新的 img_key 和 sub_key'
+    
     async with httpx.AsyncClient(proxies=p) as client:
-        resp = await client.get('https://api.bilibili.com/x/web-interface/nav')
-    # resp = requests.get('https://api.bilibili.com/x/web-interface/nav')
-    resp.raise_for_status()
-    json_content = resp.json()
+        resp = await client.get('https://api.bilibili.com/x/web-interface/nav', headers=header)
+    if not resp.status_code == 200:
+        return '', ''
     img_url: str = json_content['data']['wbi_img']['img_url']
     sub_url: str = json_content['data']['wbi_img']['sub_url']
     img_key = img_url.rsplit('/', 1)[1].split('.')[0]
@@ -56,6 +73,9 @@ async def getWbiKeys(): # sync to async
 async def update(): # sync to async
     global img_key, sub_key
     img_key, sub_key = await getWbiKeys()
+    if img_key == '' and sub_key == '':
+        return False
+    return True
 
 def encode(para:dict):
     global img_key, sub_key
