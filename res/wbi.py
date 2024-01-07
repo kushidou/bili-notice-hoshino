@@ -62,8 +62,9 @@ async def getWbiKeys(): # sync to async
     
     async with httpx.AsyncClient(proxies=p) as client:
         resp = await client.get('https://api.bilibili.com/x/web-interface/nav', headers=header)
-    if not resp.status_code == 200:
+    if not resp.status_code == 200 :
         return '', ''
+    json_content = resp.json()
     img_url: str = json_content['data']['wbi_img']['img_url']
     sub_url: str = json_content['data']['wbi_img']['sub_url']
     img_key = img_url.rsplit('/', 1)[1].split('.')[0]
@@ -72,12 +73,20 @@ async def getWbiKeys(): # sync to async
 
 async def update(): # sync to async
     global img_key, sub_key
-    img_key, sub_key = await getWbiKeys()
-    if img_key == '' and sub_key == '':
+    img_key_t, sub_key_t = await getWbiKeys()
+    
+    if img_key_t == '' or sub_key_t == '':
         return False
+    img_key = img_key_t
+    sub_key = sub_key_t
     return True
 
 def encode(para:dict):
     global img_key, sub_key
     return encWbi(para, img_key, sub_key)
 
+def check():
+    global img_key, sub_key
+    if img_key == '' and sub_key == '':
+        return False
+    return True

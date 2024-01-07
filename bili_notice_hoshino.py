@@ -62,7 +62,7 @@ bot = get_bot()
 
 @bot.on_startup
 async def startup():
-    await r = wbi.update()
+    r = await wbi.update()
     if not r:
         log.warning('Wbi 密钥获取失败。')
 

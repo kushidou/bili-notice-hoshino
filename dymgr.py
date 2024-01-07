@@ -102,7 +102,7 @@ async def update_cookies(): # sync to async
             log.warning("未获取cookies，重试")
 
         # 顺便更新wbi密钥
-        await r= wbi.update()
+        r= await  wbi.update()
         if r:
             log.info('更新wbi密钥')
         else:
