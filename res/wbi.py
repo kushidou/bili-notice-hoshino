@@ -22,7 +22,7 @@ mixinKeyEncTab = [
 img_key, sub_key = '', ''
 
 header={'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-encoding': 'gzip, deflate, br', 
+        'accept-encoding': 'identity', 
         'accept-language': 'zh-CN,zh;q=0.9', 
         'sec-ch-ua': '"Chromium";v="112", "Microsoft Edge";v="112", "Not:A-Brand";v="99"',
         'sec-ch-ua-mobile': '?0',
@@ -32,7 +32,8 @@ header={'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/w
         'sec-fetch-site': 'none', 
         'sec-fetch-user': '?1', 
         'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36 Edg/112.0.1722.58'
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36 Edg/112.0.1722.58',
+        'Accept-Charset': 'utf-8'
     }
         
 
