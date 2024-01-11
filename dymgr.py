@@ -272,8 +272,13 @@ async def get_update():
         uid_str = up_list[number]
         # print(f'[Debug] Start getting ID={uid_str}')
         try:
+            header={
+                "User-Agent":"Mozilla/5.0 (Linux; Android 11; Redmi K30 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Mobile Safari/537.36",
+                "Referer":"https://www.bilibili.com/",
+                "Origin":"https://www.bilibili.com"
+            }
             async with httpx.AsyncClient(proxies=p) as client:
-                res = await client.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}')
+                res = await client.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}',headers=header)
             # res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
         except:
             log.info('Err: Get dynamic list failed.')
@@ -1028,10 +1033,15 @@ async def search_up_in_bili(keywds:str):
     """
     uid, who = 0, ""
     url = "https://api.bilibili.com/x/web-interface/search/type"
+    header={
+        "User-Agent":"Mozilla/5.0 (Linux; Android 11; Redmi K30 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Mobile Safari/537.36",
+        "Referer":"https://www.bilibili.com/",
+        "Origin":"https://www.bilibili.com"
+    }
     para={"search_type":"bili_user", "keyword":keywds}
     try:
         async with httpx.AsyncClient(proxies=p) as client:
-            res = await client.get(url=url, params=para, cookies=gcookies)
+            res = await client.get(url=url, params=para, cookies=gcookies,headers=header)
         # res = requests.get(url=url, params=para, cookies=gcookies)
     except Exception as e:
         log.error(f'搜索UP主失败，原因为网络错误：{e}')
