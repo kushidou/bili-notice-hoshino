@@ -100,7 +100,7 @@ class Card(object):
                 log.info(f'Find black word(s) {b} in dynamic {self.dyidstr}, which is posted by {self.nickname}')
                 break
         if islucky == True:
-            if self.dytype == 1 or conf.getboolean('common','sharelucky'):
+            if self.dytype == 1 and conf.getboolean('common','sharelucky'):
                 if "互动抽奖" in str(self.card["origin"]):
                     log.info('动态为转发的抽奖内容，即将屏蔽。')
                     ret = True

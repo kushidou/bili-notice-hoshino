@@ -320,9 +320,15 @@ async def get_update():
                 fai -= 1
                 continue
             try:
+                if(dynamic.dytype == 64):
+                    log.debug(f'动态类型64, 检查问题所在:')
                 if not dynamic.check_black_words(conf.get('common','global_black_words'), this_up["ad_keys"], this_up["islucky"]):  # 如果触发过滤关键词，则忽视该动态
+                    if(dynamic.dytype == 64):
+                        log.debug(f'动态类型64, 通过了黑名单词汇检查')
                     if dynamic.is_realtime(conf.getint('common','available_time')):             # 太久的动态不予发送
                         # 只解析支持的类型
+                        if(dynamic.dytype == 64):
+                            log.debug(f'动态类型64, 通过了时间检查')
                         if dynamic.dytype in available_type or (dynamic.dytype==1 and dynamic.dyorigtype in available_type):
                             drawBox = drawCard.Box(conf)       # 创建卡片图片的对象
                             dyimg, dytype = await dynamic.draw(drawBox, conf.getboolean('cache', 'dycard_cache'))   # 绘制动态
@@ -338,6 +344,8 @@ async def get_update():
                                 "sublink":  "",
                                 "group":    this_up["group"]
                             }
+                            if(dynamic.dytype == 64):
+                                log.debug(f'动态类型64, 绘制并组织完成')
                             
                             dynamic_list.append(dyinfo)
                             suc+=1
@@ -350,6 +358,8 @@ async def get_update():
                     log.info(f"({dynamic.dyid})触发过滤词，或者是转发抽奖动态。\n")
                     fai -= 1 
             except Exception as e:
+                if(dynamic.dytype == 64):
+                    log.debug(f'动态类型64, 触发了try-exception')
                 log.warning(e)
             finally:
                 up_latest[uid_str].append(dynamic.dyid)         # (无论成功失败)完成后把动态加入肯德基豪华午餐
