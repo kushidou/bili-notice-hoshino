@@ -368,9 +368,11 @@ class Card(object):
         coverurl = content["pic"]
         viewnum = content["stat"]["view"]
         danmunum = content["stat"]["danmaku"]
-        is_coop = content["rights"]["is_cooperation"]
-        link = content["short_link_v2"]                        # Fix@2023.4.4: short_link字段被short_link_v2替换
-
+        # 2024.03.22 B站在视频动态的详细信息内删除了合作视频标识，具体的更改之后验证，目前修复缺少字段导致的视频动态无法解析。
+        # is_coop = content["rights"]["is_cooperation"]
+        is_coop = False
+        # link = content["short_link_v2"]                        # Fix@2023.4.4: short_link字段被short_link_v2替换
+        link = ""
         cover = await get_Image(Type="cover",url=coverurl)
 
         img=box.video(title,desc_text, viewnum, danmunum, cover, is_coop, dy_text, is_reposted=is_rep)
@@ -1436,11 +1438,14 @@ async def analyze_extra(latest: dict, card: dict):
     emolist, at, topic, link = {},{},{},{}
     if latest["display"].get("emoji_info"):
         emotes = latest["display"]["emoji_info"]["emoji_details"]
-        for emo in emotes:
-            emo_name = emo["text"]
-            emo_url  = emo["url"]
-            emo_img  = await get_Image(Type='emote', url=emo_url)
-            emolist[emo_name]=emo_img
+        if not emotes:
+        # emotes 取出来变成了NoneType，先堵住漏洞，之后分析原因。    
+            
+            for emo in emotes:
+                emo_name = emo["text"]
+                emo_url  = emo["url"]
+                emo_img  = await get_Image(Type='emote', url=emo_url)
+                emolist[emo_name]=emo_img
     if latest["display"].get("origin"):
         if latest["display"]["origin"].get("emoji_info"):
             emotes = latest["display"]["origin"]["emoji_info"]["emoji_details"]
