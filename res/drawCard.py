@@ -1438,7 +1438,7 @@ async def analyze_extra(latest: dict, card: dict):
     emolist, at, topic, link = {},{},{},{}
     if latest["display"].get("emoji_info"):
         emotes = latest["display"]["emoji_info"]["emoji_details"]
-        if not emotes:
+        if type(emotes):
         # emotes 取出来变成了NoneType，先堵住漏洞，之后分析原因。    
             
             for emo in emotes:
