@@ -60,11 +60,6 @@ fo_nick={
 # 返回结果为轮询结果(bool)、动态内容（list）
 bot = get_bot() 
 
-@bot.on_startup
-async def startup():
-    r = await wbi.update()
-    if not r:
-        log.warning('Wbi 密钥获取失败。')
 
 @sv.scheduled_job('interval', seconds=int(poll_time))       # 时间可以按需调整，监视的up多就短一点。但是不能太短，至少5s吧，防止被屏蔽
 async def bili_watch():

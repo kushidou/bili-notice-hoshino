@@ -5,6 +5,7 @@ import os
 from os.path import dirname, join, exists, getmtime
 from .res import drawCard
 from .res import wbi
+from .res import auth
 from loguru import logger as log
 
 help_info="""=== bili-notice-hoshino 帮助 ===
@@ -34,7 +35,6 @@ cache_clean_date = 0
 number_live = 0         # 直播轮询的编号
 flag_number_live = 5     # 默认每轮询5次，检查是否有主播开播。
 gcookies = None
-gcookies_outtime = 0
 
 p = {
     "all://":None
@@ -58,55 +58,6 @@ def up_history_write(uid:str, skin=None):
                     },
                    f, ensure_ascii=False)
 
-async def update_cookies(): # sync to async
-    global gcookies, gcookies_outtime
-    cok_delay = 6
-    if time.time() - gcookies_outtime > cok_delay*3600:
-        # 每n小时更新cookies
-        header={'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-encoding': 'gzip, deflate, br', 
-        'accept-language': 'zh-CN,zh;q=0.9', 
-        'sec-ch-ua': '"Chromium";v="112", "Microsoft Edge";v="112", "Not:A-Brand";v="99"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"', 
-        'sec-fetch-dest': 'document', 
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'none', 
-        'sec-fetch-user': '?1', 
-        'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36 Edg/112.0.1722.58'
-    }
-        url = "https://www.bilibili.com"
-        try:
-                # 从bilibili.com获得一条cookies
-                # request = requests.get(url,headers=header)
-                async with httpx.AsyncClient(proxies=p) as client:
-                    request = await client.get(url, headers=header)
-                print('GET:\tget cookies')
-                cookies = request.cookies
-                # print(cookies)
-        except Exception as e:
-                log.error(f'更新小饼干失败,code={e}')
-                cookies=None
-        
-        if not cookies == None:
-            # 如果成功获取cookies,那么直接写入gcookies
-            gcookies=cookies
-            gcookies_outtime = time.time()
-            log.info("成功更新cookies")
-        elif cookies == None and gcookies:
-            # 如果获取cookies失败，但是有现成的cookies，那么不更新cookies，但是提高申请频率
-            gcookies_outtime = time.time() + cok_delay*3600 - 600
-            log.warning("未获取cookies，沿用之前的cookies，10分钟后再次尝试")
-        else:
-            log.warning("未获取cookies，重试")
-
-        # 顺便更新wbi密钥
-        r= await  wbi.update()
-        if r:
-            log.info('更新wbi密钥')
-        else:
-            log.warning('wbi密钥获取失败')
 
     
 
@@ -217,7 +168,12 @@ async def get_update():
     msg,dyimg,dytype = None,None,None
     rst, suc, fai=0,0,0
     dynamic_list=[]
-
+    header={
+            "User-Agent":"Mozilla/5.0 (Linux; Android 11; Redmi K30 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Mobile Safari/537.36",
+            "Referer":"https://www.bilibili.com/",
+            "Origin":"https://www.bilibili.com"
+            }
+    print("ENTER get_update()")
     if number>=len(up_list):          # 序号异常大，清除
         number = 0
 
@@ -231,18 +187,21 @@ async def get_update():
         await check_plugin_update()
         cache_clean_date = cache_clean_today
     # 尝试更新cookies
-    await update_cookies()
+    gcookies = await auth.update_cookies()
+    
     # 提取下一个up，如果没有人关注的话，状态改成false，跳过不关注的人
     maxcount = len(up_list)
+
+    # 每flag_number_live次轮询，查一次直播间信息
+    # number_live += 1
+    # if flag_number_live <= number_live:
+    #     number_live=0
+    #     liverst,livelist=await live_check()
+    #     # 由于发现了新的api可以一次性查询所有直播间，与之前的设计不同，直播功能无法很好的结合进原有代码中。
+    #     # 所以，这里采用直接return的方法，避免产生其他纠葛
+    #     return liverst, livelist
+    
     while 1:
-        # 每flag_number_live次轮询，查一次直播间信息
-        number_live += 1
-        if flag_number_live <= number_live:
-            number_live=0
-            liverst,livelist=await live_check()
-            # 由于发现了新的api可以一次性查询所有直播间，与之前的设计不同，直播功能无法很好的结合进原有代码中。
-            # 所以，这里采用直接return的方法，避免产生其他纠葛
-            return liverst, livelist
         if up_list[number] not in up_group_info.keys():
             if number+1>=len(up_list):          # 最多进行一轮
                 number = 0
@@ -267,40 +226,55 @@ async def get_update():
                 number = 0
             else:
                 number = number+1
-     
     if this_up["watch"]:
         uid_str = up_list[number]
         # print(f'[Debug] Start getting ID={uid_str}')
         try:
-            header={
-                "User-Agent":"Mozilla/5.0 (Linux; Android 11; Redmi K30 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Mobile Safari/537.36",
-                "Referer":"https://www.bilibili.com/",
-                "Origin":"https://www.bilibili.com"
-            }
             async with httpx.AsyncClient(proxies=p) as client:
-                res = await client.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}',headers=header)
-            # res = requests.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history?host_uid={uid_str}' )
+                res = await client.get(url=f'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid={uid_str}',headers=header, cookies=gcookies)
         except:
             log.info('Err: Get dynamic list failed.')
             return -1, []
         if not res.status_code == 200:
             log.warning(f'get_update() fail: Server status code = {res.status_code}')
         res.encoding = 'utf-8'          # 兼容python3.9
+        # print(f'收到的结果长度有{len(res.text)}, 其中 code=', end='' )
         dylist = json.loads(res.text)
         if not dylist["code"] == 0:
-            log.warning(f'dynamic list get fail: Server OK but code={dylist["code"]}')
+            log.warning(f'dynamic list get fail: Server OK but code={dylist["code"]}, 您可能被风控. ')
             number+=1
             return -1, []
-        if "cards" not in dylist["data"].keys():
-            log.warning(f'{this_up["uname"]}({uid_str}) has no dynamic CARD(s).')
+        # 可能返回空内容
+        
+        if len(dylist["data"]["items"]) == 0:
+            log.warning(f'获取到的动态数量为0, 您可能被风控.')
             number+=1
             return -1, []
+        
+        for card in dylist["data"]["items"]:
+            # api更改，动态卡片id变化
+            if int(card["id_str"]) in up_latest[up_list[number]]:
+                break
+            # 获取动态信息，这个是旧版API格式，可以不用大幅修改解析代码 / 2024.07.14
+            async with httpx.AsyncClient(proxies=p) as client:
+                res = await client.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/get_dynamic_detail?dynamic_id={card["id_str"]}',headers=header, cookies=gcookies)
+            if not res.status_code == 200:
+                log.warning(f'Dynamic detail API return = {res.status_code}, 您可能被风控')
+                continue
+            old_card = json.loads(res.text)
 
-        for card in dylist["data"]["cards"]:
-            if int(card["desc"]["dynamic_id_str"]) in up_latest[up_list[number]]:
-                break       # 此处用break而不是continue，节约时间和空间
-            # 解析动态json
-            dynamic = drawCard.Card(card)
+            if not old_card["code"] == 0:
+                log.warning(f'dynamic detail info get fail: Server OK but code={dylist["code"]}, 您可能被风控. ')
+                continue
+        
+            if len(res.text) < 100:
+                log.warning(f'动态详细信息太短, 只有{len(res.text)}字节, 您可能被风控. ')
+                continue
+            
+            # 解析动态json, 由于API变化需要重写
+            dynamic = drawCard.Card(old_card["data"]["card"])
+                
+
             if not dynamic.json_decode_result:
                 log.error(f'动态内容解析失败，id={card["desc"]["dynamic_id_str"]}, 详见drawCard日志。')
                 up_latest[uid_str].append(dynamic.dyid)
