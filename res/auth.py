@@ -268,11 +268,11 @@ class Mylog:
     def trace(self, linfo):
         print(linfo)
 
-async def update_cookies(log = Mylog()):
+async def update_cookies(fail = 0, log = Mylog()):
     # 更新一次小饼干
     global gcookies, gcookies_outtime
     cok_delay = 6
-    if time.time() - gcookies_outtime > cok_delay*3600:
+    if time.time() - gcookies_outtime > cok_delay*3600 or fail:
         # 每n小时更新cookies
         # url = "https://www.bilibili.com"
         url = "https://space.bilibili.com/2/dynamic"

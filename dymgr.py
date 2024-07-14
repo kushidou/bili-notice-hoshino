@@ -35,6 +35,7 @@ cache_clean_date = 0
 number_live = 0         # 直播轮询的编号
 flag_number_live = 5     # 默认每轮询5次，检查是否有主播开播。
 gcookies = None
+cookies_fail = 0
 
 p = {
     "all://":None
@@ -164,7 +165,7 @@ gw_nick_list = gw_nick.keys()
 
 
 async def get_update():
-    global number,up_latest, up_list, cache_clean_date, up_group_info, number_live, flag_number_live
+    global number,up_latest, up_list, cache_clean_date, up_group_info, number_live, flag_number_live, cookies_fail
     msg,dyimg,dytype = None,None,None
     rst, suc, fai=0,0,0
     dynamic_list=[]
@@ -173,7 +174,6 @@ async def get_update():
             "Referer":"https://www.bilibili.com/",
             "Origin":"https://www.bilibili.com"
             }
-    print("ENTER get_update()")
     if number>=len(up_list):          # 序号异常大，清除
         number = 0
 
@@ -187,19 +187,21 @@ async def get_update():
         await check_plugin_update()
         cache_clean_date = cache_clean_today
     # 尝试更新cookies
-    gcookies = await auth.update_cookies()
+    gcookies = await auth.update_cookies(cookies_fail)
+    cookies_fail = 0
     
     # 提取下一个up，如果没有人关注的话，状态改成false，跳过不关注的人
     maxcount = len(up_list)
 
     # 每flag_number_live次轮询，查一次直播间信息
-    # number_live += 1
-    # if flag_number_live <= number_live:
-    #     number_live=0
-    #     liverst,livelist=await live_check()
-    #     # 由于发现了新的api可以一次性查询所有直播间，与之前的设计不同，直播功能无法很好的结合进原有代码中。
-    #     # 所以，这里采用直接return的方法，避免产生其他纠葛
-    #     return liverst, livelist
+    number_live += 1
+    if flag_number_live <= number_live:
+        print("Check live rooms.")
+        number_live=0
+        liverst,livelist=await live_check()
+        # 由于发现了新的api可以一次性查询所有直播间，与之前的设计不同，直播功能无法很好的结合进原有代码中。
+        # 所以，这里采用直接return的方法，避免产生其他纠葛
+        return liverst, livelist
     
     while 1:
         if up_list[number] not in up_group_info.keys():
@@ -228,6 +230,7 @@ async def get_update():
                 number = number+1
     if this_up["watch"]:
         uid_str = up_list[number]
+        print(f'Check list of {uid_str}')
         # print(f'[Debug] Start getting ID={uid_str}')
         try:
             async with httpx.AsyncClient(proxies=p) as client:
@@ -248,6 +251,7 @@ async def get_update():
         
         if len(dylist["data"]["items"]) == 0:
             log.warning(f'获取到的动态数量为0, 您可能被风控.')
+            cookies_fail = 1
             number+=1
             return -1, []
         
@@ -255,20 +259,34 @@ async def get_update():
             # api更改，动态卡片id变化
             if int(card["id_str"]) in up_latest[up_list[number]]:
                 break
+            
+            # 发布时间判断逻辑提前
+            pub_time = card["modules"]["module_author"]["pub_ts"]
+            if conf.getint('common','available_time') *60 < (int(time.time()) - pub_time):
+                log.info(f"This dynamic({card['id_str']}) is too old: {m2hm(time.time() - pub_time)} minutes ago\n")
+                up_latest[uid_str].append(card["id_str"])         # (无论成功失败)完成后把动态加入肯德基豪华午餐
+                return -1, []
+
             # 获取动态信息，这个是旧版API格式，可以不用大幅修改解析代码 / 2024.07.14
             async with httpx.AsyncClient(proxies=p) as client:
                 res = await client.get(url=f'https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/get_dynamic_detail?dynamic_id={card["id_str"]}',headers=header, cookies=gcookies)
             if not res.status_code == 200:
                 log.warning(f'Dynamic detail API return = {res.status_code}, 您可能被风控')
+                cookies_fail = 1
+                fai -= 1
                 continue
             old_card = json.loads(res.text)
 
             if not old_card["code"] == 0:
                 log.warning(f'dynamic detail info get fail: Server OK but code={dylist["code"]}, 您可能被风控. ')
+                cookies_fail = 1
+                fai -= 1
                 continue
         
             if len(res.text) < 100:
                 log.warning(f'动态详细信息太短, 只有{len(res.text)}字节, 您可能被风控. ')
+                cookies_fail = 1
+                fai -= 1
                 continue
             
             # 解析动态json, 由于API变化需要重写
@@ -301,8 +319,7 @@ async def get_update():
                         log.debug(f'动态类型64, 通过了黑名单词汇检查')
                     if dynamic.is_realtime(conf.getint('common','available_time')):             # 太久的动态不予发送
                         # 只解析支持的类型
-                        if(dynamic.dytype == 64):
-                            log.debug(f'动态类型64, 通过了时间检查')
+                        
                         if dynamic.dytype in available_type or (dynamic.dytype==1 and dynamic.dyorigtype in available_type):
                             drawBox = drawCard.Box(conf)       # 创建卡片图片的对象
                             dyimg, dytype = await dynamic.draw(drawBox, conf.getboolean('cache', 'dycard_cache'))   # 绘制动态
