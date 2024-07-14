@@ -237,6 +237,7 @@ async def get_update():
                 res = await client.get(url=f'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid={uid_str}',headers=header, cookies=gcookies)
         except:
             log.info('Err: Get dynamic list failed.')
+            number = 0 if number+1>=len(up_list) else number+1
             return -1, []
         if not res.status_code == 200:
             log.warning(f'get_update() fail: Server status code = {res.status_code}')
@@ -245,14 +246,14 @@ async def get_update():
         dylist = json.loads(res.text)
         if not dylist["code"] == 0:
             log.warning(f'dynamic list get fail: Server OK but code={dylist["code"]}, 您可能被风控. ')
-            number+=1
+            number = 0 if number+1>=len(up_list) else number+1
             return -1, []
         # 可能返回空内容
         
         if len(dylist["data"]["items"]) == 0:
             log.warning(f'获取到的动态数量为0, 您可能被风控.')
             cookies_fail = 1
-            number+=1
+            number = 0 if number+1>=len(up_list) else number+1
             return -1, []
         
         for card in dylist["data"]["items"]:
@@ -264,8 +265,10 @@ async def get_update():
             pub_time = card["modules"]["module_author"]["pub_ts"]
             if conf.getint('common','available_time') *60 < (int(time.time()) - pub_time):
                 log.info(f"This dynamic({card['id_str']}) is too old: {m2hm(time.time() - pub_time)} minutes ago\n")
-                up_latest[uid_str].append(card["id_str"])         # (无论成功失败)完成后把动态加入肯德基豪华午餐
-                return -1, []
+                up_latest[uid_str].append(int(card["id_str"]))       # (无论成功失败)完成后把动态加入肯德基豪华午餐
+                up_history_write(uid_str)     # 更新记录文件
+                fai -= 1
+                continue
 
             # 获取动态信息，这个是旧版API格式，可以不用大幅修改解析代码 / 2024.07.14
             async with httpx.AsyncClient(proxies=p) as client:

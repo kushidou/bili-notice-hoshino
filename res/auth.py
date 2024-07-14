@@ -278,17 +278,14 @@ async def update_cookies(fail = 0, log = Mylog()):
         url = "https://space.bilibili.com/2/dynamic"
         try:
             # 从bilibili.com获得一条cookies
-            # request = requests.get(url,headers=header)
             async with httpx.AsyncClient() as client:
                 request = await client.get(url, headers=browser_header)
             # print('GET:\tget cookies')
             cookies = request.cookies
             # print(cookies)
         except Exception as e:
-
             log.error(f'更新小饼干失败,code={e}')
-            cookies=None
-        
+            cookies=gcookies
         
         if not cookies == None:
             # 如果成功获取cookies,那么直接写入gcookies
@@ -305,6 +302,7 @@ async def update_cookies(fail = 0, log = Mylog()):
 
         gcookies["_uuid"] = gen_uuid()
         gcookies["enable_web_push"] = "DISABLE"
+        print(gcookies)
 
         await activate_bvid()
 
