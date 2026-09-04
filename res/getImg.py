@@ -6,6 +6,10 @@ from os.path import dirname, join, exists
 from PIL import Image, ImageDraw
 # import cairosvg as svg
 from loguru import logger as log
+from .httpx_compat import async_client
+
+if not hasattr(Image, 'ANTIALIAS'):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
 
 '''
     点赞    like        like.svg,40x40
@@ -116,7 +120,7 @@ async def get_Image(Type, url=None, md5=None, path=None): # sync to async
             img = Image.open(path_url)
             return img.convert('RGBA')
             
-        async with httpx.AsyncClient(proxies=p) as client:
+        async with async_client(proxies=p) as client:
             resp = await client.get(url=url)
         # resp = requests.get(url)
         log.debug(f"Getting image form Internet, downloading, type={Type}, name={filename}")
@@ -155,7 +159,7 @@ async def get_Image(Type, url=None, md5=None, path=None): # sync to async
         else:
             return Image.new('RGBA',(104,104), 'white')
         log.debug(f"Getting image form MD5, downloading, type={Type}, name={md5}")
-        async with httpx.AsyncClient(proxies=p) as client:
+        async with async_client(proxies=p) as client:
             resp = await client.get(url_md5)
         # resp = requests.get(url_md5)
         img = Image.open(BytesIO(resp.content))

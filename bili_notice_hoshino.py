@@ -74,7 +74,9 @@ async def bili_watch():
             else:
                 dytype = f'发布了一个新{dyinfo["type"]}'
 
-            msg = f'{dyinfo["nickname"]} {dytype}, 点击链接直达：\n {dyinfo["link"]}  \n[CQ:image,file={dyinfo["pic"]}]'
+            msg = f'{dyinfo["nickname"]} {dytype}, 点击链接直达：\n {dyinfo["link"]}'
+            if dyinfo.get("pic"):
+                msg += f'  \n[CQ:image,file={dyinfo["pic"]}]'
             for gid in dyinfo["group"]:
                 for sid in hoshino.get_self_ids():
                     try:

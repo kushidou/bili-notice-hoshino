@@ -8,8 +8,10 @@ import struct
 import io
 import httpx
 import json
+from os.path import dirname, join, exists
 from . import wbi
 from . import fp_raw
+from .httpx_compat import async_client
 
 browser_header = {
         "authority": "api.bilibili.com",
@@ -254,6 +256,10 @@ idpayload={
 gcookies=dict()
 gcookies_outtime = 0
 
+curpath = dirname(__file__)
+cookie_txt_path = join(curpath, 'bili_cookie.txt')
+cookie_json_path = join(curpath, 'bili_cookie.json')
+
 MOD = 1 << 64
 
 class Mylog:
@@ -268,43 +274,84 @@ class Mylog:
     def trace(self, linfo):
         print(linfo)
 
+
+def parse_cookie_text(cookie_text):
+    cookies = {}
+    for item in cookie_text.replace('\n', ';').split(';'):
+        item = item.strip()
+        if not item or '=' not in item:
+            continue
+        key, value = item.split('=', 1)
+        key = key.strip()
+        value = value.strip()
+        if key:
+            cookies[key] = value
+    return cookies
+
+
+def load_login_cookies(log = Mylog()):
+    cookies = {}
+    if exists(cookie_json_path):
+        try:
+            with open(cookie_json_path, 'r', encoding='UTF-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                cookies.update(data)
+            else:
+                log.warning('bili_cookie.json 格式错误，应为JSON对象。')
+        except Exception as e:
+            log.warning(f'读取 bili_cookie.json 失败：{e}')
+
+    if not cookies and exists(cookie_txt_path):
+        try:
+            with open(cookie_txt_path, 'r', encoding='UTF-8') as f:
+                cookies.update(parse_cookie_text(f.read()))
+        except Exception as e:
+            log.warning(f'读取 bili_cookie.txt 失败：{e}')
+
+    if cookies:
+        required = ['SESSDATA', 'bili_jct', 'DedeUserID']
+        missing = [key for key in required if not cookies.get(key)]
+        if missing:
+            log.warning(f'已读取登录cookie，但缺少关键字段：{missing}')
+        else:
+            log.info('已读取 bili_cookie 登录cookie。')
+    return cookies
+
+
 async def update_cookies(fail = 0, log = Mylog()):
-    # 更新一次小饼干
+    # 更新一次小饼干。优先使用 res/bili_cookie.txt 或 res/bili_cookie.json 中的登录cookie。
     global gcookies, gcookies_outtime
     cok_delay = 6
     if time.time() - gcookies_outtime > cok_delay*3600 or fail:
-        # 每n小时更新cookies
-        # url = "https://www.bilibili.com"
-        url = "https://space.bilibili.com/2/dynamic"
-        try:
-            # 从bilibili.com获得一条cookies
-            async with httpx.AsyncClient() as client:
-                request = await client.get(url, headers=browser_header)
-            # print('GET:\tget cookies')
-            cookies = request.cookies
-            # print(cookies)
-        except Exception as e:
-            log.error(f'更新小饼干失败,code={e}')
-            cookies=gcookies
-        
-        if not cookies == None:
-            # 如果成功获取cookies,那么直接写入gcookies
-            gcookies=cookies
+        login_cookies = load_login_cookies(log)
+        if login_cookies:
+            gcookies = login_cookies
             gcookies_outtime = time.time()
-            log.info("成功更新cookies")
-        elif cookies == None and gcookies:
-            # 如果获取cookies失败，但是有现成的cookies，那么不更新cookies，但是提高申请频率
-            gcookies_outtime = time.time() + cok_delay*3600 - 600
-            log.warning("未获取cookies, 沿用之前的cookies, 10分钟后再次尝试")
+            log.info('成功加载登录cookie')
         else:
-            log.warning("未获取cookies, 重试")
-        gcookies_outtime = time.time()
+            # 没有登录cookie时退回游客cookie。游客cookie在动态接口上更容易触发 -412。
+            url = "https://space.bilibili.com/2/dynamic"
+            try:
+                async with async_client() as client:
+                    request = await client.get(url, headers=browser_header)
+                gcookies = dict(request.cookies)
+                gcookies_outtime = time.time()
+                log.warning('未配置登录cookie，已使用游客cookie。动态接口可能返回 -412 request was banned。')
+            except Exception as e:
+                log.error(f'更新小饼干失败,code={e}')
+                if gcookies:
+                    gcookies_outtime = time.time() + cok_delay*3600 - 600
+                    log.warning('未获取cookies, 沿用之前的cookies, 10分钟后再次尝试')
+                else:
+                    log.warning('未获取cookies, 重试')
 
-        gcookies["_uuid"] = gen_uuid()
-        gcookies["enable_web_push"] = "DISABLE"
-        print(gcookies)
+        if gcookies:
+            gcookies["_uuid"] = gen_uuid()
+            gcookies["enable_web_push"] = "DISABLE"
+            log.debug(f'当前cookie字段：{list(gcookies.keys())}')
 
-        await activate_bvid()
+            await activate_bvid(log)
 
         # 顺便更新wbi密钥
         r= await  wbi.update()
@@ -313,7 +360,7 @@ async def update_cookies(fail = 0, log = Mylog()):
         else:
             log.warning('wbi密钥获取失败')
 
-    return gcookies
+    return gcookies if gcookies else None
 
 
 def _rotate_left(x: int, k: int) -> int:
@@ -339,24 +386,35 @@ def gen_buvid_fp(key: str, seed: int):
 
 async def get_buvid() -> str:
     url = "https://api.bilibili.com/x/frontend/finger/spi"
-    async with httpx.AsyncClient() as client:
+    async with async_client() as client:
         request = await client.get(url, headers=browser_header)
-    # print('GET:\tget cookies')
-    content = json.loads(request.text)
+    content = request.json()
     return content["data"]["b_3"]
 
 
-async def activate_bvid() -> int:
+async def activate_bvid(log = Mylog()) -> int:
     global gcookies
-    url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi"
-    async with httpx.AsyncClient() as client:
-        request = await client.post(url, cookies=gcookies, headers=browser_header,  data=json.dumps({"payload":json.dumps(idpayload)}))
-    # print(f'activate result = {request.status_code}')
-    # print(request.text)
-    if request.status_code != 200:
+    if not gcookies:
+        log.warning('跳过激活bvid：cookies为空')
         return -1
 
-    return json.loads(request.text)["code"]
+    url = "https://api.bilibili.com/x/internal/gaia-gateway/ExClimbWuzhi"
+    try:
+        async with async_client() as client:
+            request = await client.post(url, cookies=gcookies, headers=browser_header, data=json.dumps({"payload":json.dumps(idpayload)}))
+    except Exception as e:
+        log.warning(f'激活bvid失败：{e}')
+        return -1
+
+    if request.status_code != 200:
+        log.warning(f'激活bvid失败，HTTP={request.status_code}, body={request.text[:300]}')
+        return -1
+
+    try:
+        return request.json()["code"]
+    except Exception as e:
+        log.warning(f'激活bvid响应解析失败：{e}, body={request.text[:300]}')
+        return -1
 
 
 def _murmur3_x64_128(source: io.BufferedIOBase, seed: int) -> str:
